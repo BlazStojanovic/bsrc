@@ -1,0 +1,103 @@
+#!/usr/bin/env bash
+# tmux-git-badge — fast Git status for tmux
+# - Cache last status on filesystem
+# - Regens the status every 60s
+# - Or whenever the cwd, git dir, FETCH_HEAD, or upstream remote's reflog changes
+# usage: tmux-git-badge [pane_current_path] [cache_key]
+
+set -euo pipefail
+
+key=${2:-default}
+cache="/tmp/tmux-badge-git${key//\//-}"
+CWD=${1:-$PWD}
+now=${EPOCHSECONDS:-$(date +%s)}
+
+# FAST PATH
+if { exec {fd}<"$cache"; } 2>/dev/null; then
+  mapfile -t L <&"$fd"; exec {fd}<&-
+  cwd_cached=${L[0]:-"_"}
+  git_root=${L[1]:-"_"}
+  upstream=${L[2]:-"_"}
+  out_cached=${L[3]:-}
+  regen_ts=${L[4]:-0}
+
+  if [[ $cwd_cached == "$CWD" ]] && (( now - regen_ts < 60 )); then
+    if [[ $git_root == "_" ]]; then
+      exit 0
+    else
+      GIT="$git_root/.git"
+      FETCH_HEAD="$GIT/FETCH_HEAD"
+      # If upstream is set, stat its remote-tracking reflog
+      if [[ $upstream != "_" ]]; then
+        REMOTE_LOG="$GIT/logs/refs/remotes/$upstream"
+      else
+        REMOTE_LOG=""
+      fi
+      if ! { [[ "$GIT" -nt "$cache" ]] \
+          || [[ "$FETCH_HEAD" -nt "$cache" ]] \
+          || { [[ "$REMOTE_LOG" -nt "$cache" ]]; }; }; then
+        [[ -n $out_cached ]] && printf '%s\n' "$out_cached"
+        exit 0
+      fi
+    fi
+  fi
+fi
+
+# REGEN PATH
+git_root="$(git -C "$CWD" rev-parse --show-toplevel 2>/dev/null || printf '_')"
+
+# Non-git: write empty badge and exit
+if [[ $git_root == "_" ]]; then
+  tmp="${cache}.tmp.$$"
+  {
+    printf '%s\n' "$CWD"     # [1] cwd
+    printf '%s\n' '_'        # [2] git_root
+    printf '%s\n' '_'        # [3] upstream
+    printf '\n'              # [4] out (empty)
+    printf '%s\n' "$now"     # [5] regen_ts
+  } >"$tmp"
+  mv "$tmp" "$cache"
+  exit 0
+fi
+
+# Discover upstream as a single token "remote/branch" or "_"
+upstream="$(git -C "$CWD" rev-parse --abbrev-ref --symbolic-full-name @{u} 2>/dev/null || printf '_')"
+
+# Git info
+branch="$(git -C "$CWD" symbolic-ref --short -q HEAD 2>/dev/null \
+          || git -C "$CWD" describe --tags --exact-match HEAD 2>/dev/null | sed 's/^/ /' \
+          || git -C "$CWD" rev-parse --short HEAD 2>/dev/null \
+          || printf '?')"
+ahead="$(git -C "$CWD" rev-list --count @{u}..HEAD 2>/dev/null || printf 0)"
+behind="$(git -C "$CWD" rev-list --count HEAD..@{u} 2>/dev/null || printf 0)"
+repo="${git_root##*/}"
+
+clean_mark=""
+if git -C "$CWD" diff --quiet --ignore-submodules HEAD 2>/dev/null; then
+  clean_mark=" ✓"
+fi
+
+sum_numstat() { awk '$1 ~ /^[0-9]+$/ {i+=$1} $2 ~ /^[0-9]+$/ {d+=$2} END {print (i+0), (d+0)}'; }
+read -r i1 d1 <<<"$(git -C "$CWD" diff --numstat 2>/dev/null | sum_numstat)"
+read -r i2 d2 <<<"$(git -C "$CWD" diff --numstat --cached 2>/dev/null | sum_numstat)"
+ins=$((i1 + i2)); del=$((d1 + d2))
+
+out="  $branch"
+(( ahead > 0 ))  && out+=" ↑$ahead"
+(( behind > 0 )) && out+=" ↓$behind"
+out+=" ($repo)$clean_mark"
+if (( ins > 0 || del > 0 )); then out+=" [+$ins -$del]"; fi
+
+# Write cache & print
+tmp="${cache}.tmp.$$"
+{
+  printf '%s\n' "$CWD"       # [1] cwd
+  printf '%s\n' "$git_root"  # [2] git_root
+  printf '%s\n' "$upstream"  # [3] upstream
+  printf '%s\n' "$out"       # [4] out
+  printf '%s\n' "$now"       # [5] regen_ts
+} >"$tmp"
+mv "$tmp" "$cache"
+
+printf '%s\n' "$out"
+

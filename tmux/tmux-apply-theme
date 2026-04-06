@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+TMUX_BIN="${TMUX_BIN:-tmux}"
+
+appearance="light"
+if defaults read -g AppleInterfaceStyle >/dev/null 2>&1; then
+  appearance="dark"
+fi
+
+apply_dark() {
+  "$TMUX_BIN" set -g status-style bg="#2d2a2e",fg="#fcfcfa"
+  "$TMUX_BIN" set -g message-style bg="#4b464d",fg="#fcfcfa"
+  "$TMUX_BIN" set -g message-command-style bg="#4b464d",fg="#ffd866"
+  "$TMUX_BIN" set -g mode-style bg="#4b464d",fg="#fcfcfa"
+  "$TMUX_BIN" set -g status-left '#[fg=#4b464d]#[fg=#fcfcfa,bg=#4b464d]#S#[fg=#4b464d,bg=#2d2a2e] #[default]'
+  "$TMUX_BIN" set -g status-right '#[fg=#a1a19f]#[fg=#2d2a2e,bg=#a1a19f]#{?#{||:#{==:#{pane_current_command},ssh},#{==:#{pane_current_command},mosh-client}},#(~/.local/bin/tmux-ssh-host "#{pane_pid}" "#{socket_path}-#{pane_id}"),#H#(~/.local/bin/tmux-git-badge "#{pane_current_path}" "#{socket_path}-#{pane_id}")}#[fg=#a1a19f,bg=#2d2a2e]#[default]'
+  "$TMUX_BIN" set -g window-status-style bg="#2d2a2e",fg="#a1a19f"
+  "$TMUX_BIN" set -g window-status-format '#I #{=|20|...:#(~/.local/bin/tmux-pane-label "#{pane_pid}" "#{pane_current_path}" "#{socket_path}-#{pane_id}" "#{pane_current_command}" "#{pane_title}")}'
+  "$TMUX_BIN" set -g window-status-activity-style fg="#2d2a2e",bg="#ffd866"
+  "$TMUX_BIN" set -g window-status-bell-style fg="#2d2a2e",bg="#ff6188"
+  "$TMUX_BIN" set -g window-status-current-format '#[fg=#a9dc76,bg=#2d2a2e]#[fg=#2d2a2e,bg=#a9dc76]#I #{=|28|...:#(~/.local/bin/tmux-pane-label "#{pane_pid}" "#{pane_current_path}" "#{socket_path}-#{pane_id}" "#{pane_current_command}" "#{pane_title}")}#[fg=#a9dc76,bg=#2d2a2e]#[default]'
+  "$TMUX_BIN" set -g pane-border-style fg="#4b464d"
+  "$TMUX_BIN" set -g pane-active-border-style fg="#78dce8"
+  "$TMUX_BIN" set -g display-panes-colour "#a1a19f"
+  "$TMUX_BIN" set -g display-panes-active-colour "#ffd866"
+}
+
+apply_light() {
+  "$TMUX_BIN" set -g status-style bg="#faf4f2",fg="#29242a"
+  "$TMUX_BIN" set -g message-style bg="#d6d2d0",fg="#29242a"
+  "$TMUX_BIN" set -g message-command-style bg="#d6d2d0",fg="#cc7a0a"
+  "$TMUX_BIN" set -g mode-style bg="#d6d2d0",fg="#29242a"
+  "$TMUX_BIN" set -g status-left '#[fg=#d6d2d0]#[fg=#29242a,bg=#d6d2d0]#S#[fg=#d6d2d0,bg=#faf4f2] #[default]'
+  "$TMUX_BIN" set -g status-right '#[fg=#998c9c]#[fg=#faf4f2,bg=#998c9c]#{?#{||:#{==:#{pane_current_command},ssh},#{==:#{pane_current_command},mosh-client}},#(~/.local/bin/tmux-ssh-host "#{pane_pid}" "#{socket_path}-#{pane_id}"),#H#(~/.local/bin/tmux-git-badge "#{pane_current_path}" "#{socket_path}-#{pane_id}")}#[fg=#998c9c,bg=#faf4f2]#[default]'
+  "$TMUX_BIN" set -g window-status-style bg="#faf4f2",fg="#998c9c"
+  "$TMUX_BIN" set -g window-status-format '#I #{=|20|...:#(~/.local/bin/tmux-pane-label "#{pane_pid}" "#{pane_current_path}" "#{socket_path}-#{pane_id}" "#{pane_current_command}" "#{pane_title}")}'
+  "$TMUX_BIN" set -g window-status-activity-style fg="#faf4f2",bg="#cc7a0a"
+  "$TMUX_BIN" set -g window-status-bell-style fg="#faf4f2",bg="#e14775"
+  "$TMUX_BIN" set -g window-status-current-format '#[fg=#269d69,bg=#faf4f2]#[fg=#faf4f2,bg=#269d69]#I #{=|28|...:#(~/.local/bin/tmux-pane-label "#{pane_pid}" "#{pane_current_path}" "#{socket_path}-#{pane_id}" "#{pane_current_command}" "#{pane_title}")}#[fg=#269d69,bg=#faf4f2]#[default]'
+  "$TMUX_BIN" set -g pane-border-style fg="#d6d2d0"
+  "$TMUX_BIN" set -g pane-active-border-style fg="#1c8ca8"
+  "$TMUX_BIN" set -g display-panes-colour "#998c9c"
+  "$TMUX_BIN" set -g display-panes-active-colour "#cc7a0a"
+}
+
+if [[ "$appearance" == "dark" ]]; then
+  apply_dark
+else
+  apply_light
+fi
+
+"$TMUX_BIN" refresh-client -S >/dev/null 2>&1 || true

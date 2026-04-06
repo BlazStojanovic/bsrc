@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+cat <<'EOF'
+Tmux Help
+=========
+
+Session and windows
+- Prefix c: new window in current directory
+- Shift-Left / Shift-Right: previous / next window
+- Click status-left: new window in current directory
+- Click status-right: open choose-window
+
+Panes
+- Prefix s: split horizontally into top/bottom panes
+- Prefix v: split vertically into left/right panes
+- Prefix h/j/k/l: move to pane left/down/up/right
+- Prefix Ctrl-h/j/k/l: resize pane left/down/up/right
+
+Config
+- Prefix r: reload ~/.tmux.conf
+- Prefix ?: open this help popup
+
+Status line
+- Left side shows the tmux session name
+- Right side shows SSH host when the active pane is SSH
+- Otherwise right side shows hostname plus Git branch / repo / dirty state
+- Window labels are inferred from the active pane process, such as nvim, yazi,
+  git, docker, kubectl, Codex, or Claude
+
+Managed helper scripts
+- ~/.local/bin/tmux-pane-label
+- ~/.local/bin/tmux-git-badge
+- ~/.local/bin/tmux-ssh-host
+EOF
+
+if [[ -t 0 ]]; then
+  printf '\nPress any key to close...'
+  IFS= read -r -n 1 _
+  printf '\n'
+fi
