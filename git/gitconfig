@@ -1,6 +1,9 @@
 [core]
 	editor = nvim
 
+[user]
+	email = blaz@poolside.ai
+
 [push]
 	default = current
 
