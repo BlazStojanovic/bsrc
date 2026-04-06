@@ -1,9 +1,15 @@
 local keymap = vim.keymap.set
 
-keymap("n", "<leader>e", "<cmd>Ex<cr>")
 keymap("n", "<leader>w", "<cmd>write<cr>")
 keymap("n", "<leader>q", "<cmd>quit<cr>")
 keymap("n", "<leader>?", "<cmd>BsrcHelp<cr>", { desc = "Bsrc help" })
+keymap("n", "[d", vim.diagnostic.goto_prev, { desc = "Previous diagnostic" })
+keymap("n", "]d", vim.diagnostic.goto_next, { desc = "Next diagnostic" })
+keymap("n", "<leader>vd", vim.diagnostic.open_float, { desc = "Line diagnostics" })
+keymap("n", "<leader>xx", "<cmd>Trouble diagnostics toggle<cr>", { desc = "Diagnostics list" })
+keymap("n", "<leader>xr", "<cmd>Trouble lsp_references toggle<cr>", { desc = "References list" })
+keymap("n", "<leader>xs", "<cmd>Trouble symbols toggle focus=false<cr>", { desc = "Symbols list" })
+keymap("n", "<leader>o", "<cmd>AerialToggle!<cr>", { desc = "Outline" })
 
 keymap("v", "J", ":m '>+1<CR>gv=gv")
 keymap("v", "K", ":m '<-2<CR>gv=gv")

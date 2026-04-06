@@ -46,6 +46,27 @@ return {
     },
   },
   {
+    "folke/trouble.nvim",
+    dependencies = { "nvim-tree/nvim-web-devicons" },
+    cmd = { "Trouble" },
+    opts = {
+      focus = true,
+    },
+  },
+  {
+    "stevearc/aerial.nvim",
+    dependencies = { "nvim-treesitter/nvim-treesitter", "nvim-tree/nvim-web-devicons" },
+    cmd = { "AerialToggle", "AerialOpen", "AerialNavToggle" },
+    opts = {
+      attach_mode = "window",
+      layout = {
+        min_width = 28,
+        default_direction = "right",
+      },
+      show_guides = true,
+    },
+  },
+  {
     "akinsho/bufferline.nvim",
     version = "*",
     dependencies = { "nvim-tree/nvim-web-devicons" },

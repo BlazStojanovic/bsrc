@@ -27,6 +27,7 @@ vim.opt.termguicolors = true
 vim.opt.signcolumn = "yes"
 vim.opt.scrolloff = 8
 vim.opt.updatetime = 200
+vim.opt.completeopt = { "menu", "menuone", "noselect", "popup" }
 vim.opt.clipboard = "unnamedplus"
 vim.opt.splitright = true
 vim.opt.splitbelow = true
