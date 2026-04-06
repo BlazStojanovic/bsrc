@@ -43,17 +43,19 @@ cd ~/Developer/bsrc
 ./setup.sh
 ```
 
-The setup script is idempotent. It updates symlinks and creates missing config
-directories, but it does not overwrite regular files you already own.
+The setup script is idempotent. It updates symlinks, creates missing config
+directories, and replaces managed paths so the repo stays the source of truth.
 
 ## Zsh
 
 The Zsh config is intentionally small and portable. It currently provides:
 
+- explicit `oh-my-zsh` installation and configuration
+- the `git` plugin from `oh-my-zsh`
 - Homebrew initialization from `zprofile`
 - XDG, Go, and npm user-level paths
 - optional `mise` activation
-- a prompt with the current git ref
+- a repo-owned `robbyrussell`-style theme with adaptive Monokai light/dark colors
 - `y()` to enter `yazi` and `cd` into the chosen directory on exit
 - Zsh-native completion for local `make` targets
 
@@ -62,6 +64,10 @@ Current shell aliases:
 - `vim='nvim'`
 - `vi='nvim'`
 - `src='source ~/.zshrc'`
+- `ls='ls -G'`
+- `ll='ls -lh'`
+- `la='ls -A'`
+- `l='ls -CF'`
 - `g='git'`
 - `ga='git add .'`
 - `ck='git switch'`
@@ -77,6 +83,10 @@ Current shell aliases:
 
 The intent is to keep only high-signal aliases in the base setup. Tool-specific
 or workflow-specific shortcuts should be added deliberately.
+
+`oh-my-zsh` is installed into `~/.oh-my-zsh` by the Zsh installer, and the
+prompt is provided by the repo-owned theme at
+[bsrc.zsh-theme](/Users/blazstojanovic/Developer/bsrc/zsh/custom/themes/bsrc.zsh-theme).
 
 ## Fonts
 

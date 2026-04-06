@@ -102,6 +102,22 @@ return {
       auto_restore = true,
       auto_save = true,
       auto_session_suppress_dirs = { "~/" },
+      close_filetypes_on_save = { "checkhealth", "NvimTree" },
+      preserve_buffer_on_restore = function(bufnr)
+        local name = vim.api.nvim_buf_get_name(bufnr)
+        local filetype = vim.bo[bufnr].filetype
+
+        return filetype ~= "NvimTree" and not name:match("NvimTree_%d+$")
+      end,
+      pre_save_cmds = {
+        function()
+          if vim.fn.exists(":NvimTreeClose") == 2 then
+            pcall(vim.cmd, "NvimTreeClose")
+          end
+
+          return true
+        end,
+      },
     },
   },
 }

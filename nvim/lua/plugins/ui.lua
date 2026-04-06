@@ -17,7 +17,20 @@ return {
     "nvim-tree/nvim-tree.lua",
     dependencies = { "nvim-tree/nvim-web-devicons" },
     keys = {
-      { "<leader>e", "<cmd>NvimTreeFindFileToggle<cr>", desc = "File tree" },
+      {
+        "<leader>e",
+        function()
+          for _, buf in ipairs(vim.api.nvim_list_bufs()) do
+            local name = vim.api.nvim_buf_get_name(buf)
+            if name:match("NvimTree_%d+$") then
+              pcall(vim.api.nvim_buf_delete, buf, { force = true })
+            end
+          end
+
+          require("nvim-tree.api").tree.find_file({ open = true, focus = true })
+        end,
+        desc = "File tree",
+      },
     },
     opts = {
       sort_by = "case_sensitive",
@@ -26,6 +39,9 @@ return {
       },
       renderer = {
         group_empty = true,
+      },
+      filters = {
+        custom = { ".DS_Store" },
       },
     },
   },

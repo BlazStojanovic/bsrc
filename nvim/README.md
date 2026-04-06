@@ -60,8 +60,8 @@ Use either of these inside Neovim:
 - `:BsrcHelp`
 - `<leader>?`
 
-The popup includes the current keymaps, plugin entrypoints, and a few notes
-about the setup. It is meant to be a real quick-reference, not just a reminder.
+The popup is a plain command cheat sheet for files, tree movement, buffers,
+search, code navigation, git, sessions, and editing.
 
 ## LSP navigation
 

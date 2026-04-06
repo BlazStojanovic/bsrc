@@ -50,7 +50,9 @@ link_file() {
   fi
 
   if [[ -e "$dest" ]]; then
-    warn "Skipping existing non-symlink: $dest"
+    rm -rf "$dest"
+    ln -s "$src" "$dest"
+    log "Replaced existing path: $dest -> $src"
     return 0
   fi
 

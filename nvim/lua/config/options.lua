@@ -1,6 +1,12 @@
 vim.g.mapleader = " "
 vim.g.maplocalleader = " "
 
+for _, dir in ipairs({ "/opt/homebrew/bin", "/opt/homebrew/sbin", "/usr/local/bin", vim.fn.expand("~/.local/bin") }) do
+  if vim.fn.isdirectory(dir) == 1 and not vim.env.PATH:find(dir, 1, true) then
+    vim.env.PATH = dir .. ":" .. vim.env.PATH
+  end
+end
+
 vim.opt.number = true
 vim.opt.relativenumber = true
 vim.opt.tabstop = 4

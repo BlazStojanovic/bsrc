@@ -32,6 +32,7 @@ install_brew_packages() {
     fd
     go
     tree-sitter
+    tree-sitter-cli
     lua-language-server
     ruff
     rust-analyzer
