@@ -1,0 +1,25 @@
+local keymap = vim.keymap.set
+
+keymap("n", "<leader>e", "<cmd>Ex<cr>")
+keymap("n", "<leader>w", "<cmd>write<cr>")
+keymap("n", "<leader>q", "<cmd>quit<cr>")
+keymap("n", "<leader>?", "<cmd>BsrcHelp<cr>", { desc = "Bsrc help" })
+
+keymap("v", "J", ":m '>+1<CR>gv=gv")
+keymap("v", "K", ":m '<-2<CR>gv=gv")
+keymap("n", "J", "mzJ`z")
+keymap("n", "<C-d>", "<C-d>zz")
+keymap("n", "<C-u>", "<C-u>zz")
+keymap("n", "n", "nzzzv")
+keymap("n", "N", "Nzzzv")
+keymap("n", "Q", "<nop>")
+
+keymap({ "n", "v" }, "<leader>y", [["+y]])
+keymap("n", "<leader>Y", [["+Y]])
+keymap({ "n", "v" }, "<leader>d", [["_d]])
+keymap("x", "<leader>p", [["_dP]])
+keymap("n", "<leader>n", "<cmd>bnext<cr>")
+keymap("n", "<leader>p", "<cmd>bprevious<cr>")
+keymap("n", "<leader>x", "<cmd>bdelete<cr>")
+keymap("n", "<leader>ml", "<cmd>b#<cr>")
+keymap("i", "<C-c>", "<Esc>")
