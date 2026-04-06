@@ -53,8 +53,18 @@ Examples:
 - `yazi` panes are labeled as file-manager contexts
 - `git`, `lazygit`, `docker`, `kubectl`, `terraform`, `node`, `python`, and
   other tool families get process-aware labels
-- agent CLIs such as Codex or Claude get dedicated labels
+- agent CLIs get per-tool icons from custom private-use glyphs:
+  `codex` / OpenAI, `claude` / Anthropic, `opencode`, and `pool`
 - SSH panes are labeled with the remote host
+
+You can override those four agent glyphs with:
+
+```bash
+TMUX_ICON_CODEX="..."
+TMUX_ICON_CLAUDE="..."
+TMUX_ICON_OPENCODE="..."
+TMUX_ICON_POOL="..."
+```
 
 This is what drives the window text shown in the tmux tab bar.
 

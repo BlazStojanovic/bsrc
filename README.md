@@ -99,7 +99,7 @@ The current default is:
 
 Ghostty is configured to use:
 
-- `Hack Nerd Font Mono`
+- `Hack Nerd Font Mono Bsrc`
 
 ## Ghostty
 
