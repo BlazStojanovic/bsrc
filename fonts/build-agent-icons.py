@@ -50,8 +50,8 @@ def set_font_names(font, target_path: str) -> None:
 def normalize_glyph(font, glyph) -> None:
     em = font.ascent + font.descent
     advance = font[0x20].width or font.em
-    target_w = advance * 0.82
-    target_h = em * 0.82
+    target_w = advance * 0.92
+    target_h = em * 0.92
 
     glyph.removeOverlap()
     glyph.correctDirection()

@@ -12,7 +12,7 @@ pane_title="${5:-}"
 cache="/tmp/tmux-badge-label${key//\//-}"
 now=${EPOCHSECONDS:-$(date +%s)}
 ttl=60
-cache_version=14
+cache_version=15
 TMUX_LABEL_ICONS="${TMUX_LABEL_ICONS:-1}"
 
 ICON_TERMINAL=""
@@ -118,6 +118,23 @@ icon_for_agent() {
   fi
 }
 
+agent_name_for_label() {
+  local comm="$1" args="$2"
+  comm="$(normalize_comm "$comm")"
+
+  if [[ "$comm" == "codex" || "$args" =~ (^|[[:space:]/:_-])codex([[:space:]/:_-]|$) ]]; then
+    printf '%s\n' "codex"
+  elif [[ "$comm" == "claude" || "$args" =~ (^|[[:space:]/:_-])claude([[:space:]/:_-]|$) ]]; then
+    printf '%s\n' "claude"
+  elif [[ "$comm" == "opencode" || "$args" =~ (^|[[:space:]/:_-])opencode([[:space:]/:_-]|$) ]]; then
+    printf '%s\n' "opencode"
+  elif [[ "$comm" == "pool" || "$comm" == "poolside" || "$args" =~ (^|[[:space:]/:_-])(pool|poolside)([[:space:]/:_-]|$) ]]; then
+    printf '%s\n' "pool"
+  else
+    printf '%s\n' "agent"
+  fi
+}
+
 is_agent_icon() {
   local icon="$1"
   [[ "$icon" == "$ICON_AGENT" || "$icon" == "$ICON_AGENT_CODEX" || "$icon" == "$ICON_AGENT_CLAUDE" || "$icon" == "$ICON_AGENT_OPENCODE" || "$icon" == "$ICON_AGENT_POOL" ]]
@@ -196,6 +213,9 @@ classify_label() {
   # Highest-priority contexts first.
   if is_coding_agent "$comm" "$args"; then
     icon="$(icon_for_agent "$comm" "$args")"
+    (( nocase_was_on )) || shopt -u nocasematch
+    printf '%s %s:%s\n' "$icon" "$(agent_name_for_label "$comm" "$args")" "$path_base"
+    return
   elif [[ "$comm" == "ssh" || "$comm" == "mosh-client" || "$args" =~ (^|[[:space:]])(ssh|mosh-client)([[:space:]]|$) ]]; then
     host="$(ssh_host_from_args "$args")"
     (( nocase_was_on )) || shopt -u nocasematch

@@ -55,6 +55,8 @@ Examples:
   other tool families get process-aware labels
 - agent CLIs get per-tool icons from custom private-use glyphs:
   `codex` / OpenAI, `claude` / Anthropic, `opencode`, and `pool`
+- those four agent tabs are labeled as `command:dir`, for example
+  `codex:bsrc`
 - SSH panes are labeled with the remote host
 
 You can override those four agent glyphs with:
