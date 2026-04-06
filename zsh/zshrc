@@ -1,0 +1,99 @@
+autoload -Uz compinit
+compinit
+
+setopt AUTO_CD
+setopt HIST_IGNORE_DUPS
+setopt SHARE_HISTORY
+
+export XDG_CONFIG_HOME="$HOME/.config"
+export XDG_DATA_HOME="$HOME/.local/share"
+export XDG_STATE_HOME="$HOME/.local/state"
+
+export GOPATH="$XDG_STATE_HOME/go"
+export GOBIN="$HOME/.local/bin"
+export NPM_CONFIG_PREFIX="$HOME/.local"
+
+path=(
+  "$HOME/.local/bin"
+  "$GOBIN"
+  "${KREW_ROOT:-$HOME/.krew}/bin"
+  $path
+)
+
+export PATH
+
+if [[ -x "$HOME/.local/bin/mise" ]]; then
+  eval "$("$HOME/.local/bin/mise" activate zsh)"
+fi
+
+if [[ -n "${SSH_AUTH_SOCK:-}" && "${SSH_AUTH_SOCK}" != "$HOME/.ssh/agent_sock" ]]; then
+  rm -f "$HOME/.ssh/agent_sock" 2>/dev/null || true
+  ln -s "$SSH_AUTH_SOCK" "$HOME/.ssh/agent_sock"
+  export SSH_AUTH_SOCK="$HOME/.ssh/agent_sock"
+elif [[ -z "${SSH_AUTH_SOCK:-}" ]]; then
+  export SSH_AUTH_SOCK="$HOME/.ssh/agent_sock"
+fi
+
+export VISUAL="nvim"
+export EDITOR="nvim"
+export LANG="en_US.UTF-8"
+export LC_ALL="en_US.UTF-8"
+export CLICOLOR=1
+
+bindkey -e
+
+autoload -U colors && colors
+setopt PROMPT_SUBST
+
+parse_git_branch() {
+  git symbolic-ref --short -q HEAD 2>/dev/null | sed -E 's/(.*)/(git:\1)/' \
+    || git describe --tags --exact-match HEAD 2>/dev/null | sed -E 's/(.*)/(tag:\1)/' \
+    || git rev-parse --short HEAD 2>/dev/null | sed -E 's/(.*)/(rev:\1)/'
+}
+
+PROMPT='%F{green}%n@%m%f:%~ %F{yellow}$(parse_git_branch)%f %# '
+
+_bsrc_make_targets() {
+  local makefile
+  local -a targets
+
+  for makefile in GNUmakefile makefile Makefile; do
+    [[ -f "$makefile" ]] || continue
+    targets=("${(@f)$(sed -nE 's/^([A-Za-z0-9_.-]+):.*/\1/p' "$makefile")}")
+    (( ${#targets[@]} )) && compadd -- "${targets[@]}"
+    return 0
+  done
+
+  return 1
+}
+
+compdef _bsrc_make_targets make
+
+y() {
+  local tmp cwd
+  tmp="$(mktemp -t yazi-cwd.XXXXXX)"
+  yazi "$@" --cwd-file="$tmp"
+  cwd="$(cat "$tmp" 2>/dev/null || true)"
+  [[ -n "$cwd" && "$cwd" != "$PWD" ]] && cd -- "$cwd"
+  rm -f -- "$tmp"
+}
+
+alias vim='nvim'
+alias vi='nvim'
+alias src='source ~/.zshrc'
+alias g='git'
+alias ga='git add .'
+alias ck='git switch'
+alias cm='git-commit-all'
+alias gd='git diff'
+alias gs='git status -sb'
+alias st='git status && git diff --stat'
+alias pl='git pull'
+alias ph='git push --force-with-lease'
+alias fh='git fetch'
+alias br='git log --graph --oneline --decorate --all'
+alias lg='lazygit'
+
+if [[ -f /opt/homebrew/share/zsh/site-functions/_brew ]]; then
+  fpath=(/opt/homebrew/share/zsh/site-functions $fpath)
+fi
