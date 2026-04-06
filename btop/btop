@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+REAL_BTOP="${REAL_BTOP:-/opt/homebrew/bin/btop}"
+THEMES_DIR="${HOME}/.config/btop/themes"
+BASE_CONFIG="${HOME}/.config/btop/btop.conf"
+GENERATED_CONFIG="${HOME}/.config/btop/btop.generated.conf"
+
+if [[ ! -x "$REAL_BTOP" ]]; then
+  echo "btop wrapper: real btop binary not found at $REAL_BTOP" >&2
+  exit 1
+fi
+
+theme="monokai-bsrc-light"
+if defaults read -g AppleInterfaceStyle >/dev/null 2>&1; then
+  theme="monokai-bsrc-dark"
+fi
+
+mkdir -p "$(dirname "$GENERATED_CONFIG")"
+sed -E "s/^color_theme = .*/color_theme = \"${theme}\"/" "$BASE_CONFIG" > "$GENERATED_CONFIG"
+
+exec "$REAL_BTOP" --config "$GENERATED_CONFIG" --themes-dir "$THEMES_DIR" "$@"
