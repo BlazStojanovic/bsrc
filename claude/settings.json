@@ -5,6 +5,7 @@
     "enabled": true,
     "mode": "hold"
   },
+  "theme": "system",
   "statusLine": {
     "type": "command",
     "command": "bash ~/.claude/statusline.sh"
