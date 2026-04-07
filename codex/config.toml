@@ -2,3 +2,6 @@ theme = "ansi"
 
 [projects."/Users/blazstojanovic/Developer"]
 trust_level = "trusted"
+
+[projects."/Users/blazstojanovic/Developer/bsrc"]
+trust_level = "trusted"
