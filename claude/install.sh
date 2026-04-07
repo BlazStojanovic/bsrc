@@ -8,3 +8,5 @@ source "$ROOT_DIR/lib/common.sh"
 
 ensure_dir "$HOME/.claude"
 link_file "$ROOT_DIR/claude/CLAUDE.md" "$HOME/.claude/CLAUDE.md"
+link_file "$ROOT_DIR/claude/settings.json" "$HOME/.claude/settings.json"
+link_file "$ROOT_DIR/claude/statusline.sh" "$HOME/.claude/statusline.sh"
