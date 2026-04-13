@@ -63,6 +63,14 @@ Use either of these inside Neovim:
 The popup is a plain command cheat sheet for files, tree movement, buffers,
 search, code navigation, git, sessions, and editing.
 
+Search shortcuts include:
+
+- `<leader>ff` for files
+- `<leader>fg` for project grep
+- `<leader>fb` for switching to an open buffer by name
+- `<leader>fB` for grep across the contents of open buffers
+- `<leader>f/` for fuzzy find in the current buffer
+
 ## LSP navigation
 
 The most important LSP navigation bindings are:

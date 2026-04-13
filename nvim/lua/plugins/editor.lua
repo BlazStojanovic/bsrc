@@ -6,6 +6,28 @@ return {
       { "<leader>ff", "<cmd>Telescope find_files<cr>", desc = "Find files" },
       { "<leader>fg", "<cmd>Telescope live_grep<cr>", desc = "Live grep" },
       { "<leader>fb", "<cmd>Telescope buffers<cr>", desc = "Buffers" },
+      {
+        "<leader>fB",
+        function()
+          require("telescope.builtin").live_grep({
+            grep_open_files = true,
+            prompt_title = "Live Grep Open Buffers",
+          })
+        end,
+        desc = "Grep open buffers",
+      },
+      {
+        "<leader>f/",
+        function()
+          require("telescope.builtin").current_buffer_fuzzy_find(
+            require("telescope.themes").get_dropdown({
+              winblend = 10,
+              previewer = false,
+            })
+          )
+        end,
+        desc = "Find in buffer",
+      },
       { "<leader>fh", "<cmd>Telescope help_tags<cr>", desc = "Help tags" },
     },
     opts = {
