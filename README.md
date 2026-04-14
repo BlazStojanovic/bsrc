@@ -55,7 +55,7 @@ The Zsh config is intentionally small and portable. It currently provides:
 - Homebrew initialization from `zprofile`
 - XDG, Go, and npm user-level paths
 - optional `mise` activation
-- a repo-owned `robbyrussell`-style theme with adaptive Monokai light/dark colors
+- a repo-owned `robbyrussell`-style theme with adaptive Monokai light/dark colors and active Python virtualenv display
 - `y()` to enter `yazi` and `cd` into the chosen directory on exit
 - Zsh-native completion for local `make` targets
 

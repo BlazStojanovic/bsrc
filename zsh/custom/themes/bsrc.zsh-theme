@@ -6,6 +6,21 @@ _bsrc_appearance() {
   fi
 }
 
+_bsrc_python_env_prompt() {
+  local env_name color
+
+  [[ -n "${VIRTUAL_ENV:-}" ]] || return 0
+
+  env_name="${VIRTUAL_ENV:t}"
+
+  case "$(_bsrc_appearance)" in
+    dark) color=186 ;;
+    *) color=130 ;;
+  esac
+
+  printf ' %%F{%s}(%s)%%f' "$color" "$env_name"
+}
+
 _bsrc_apply_theme() {
   case "$(_bsrc_appearance)" in
     dark)
@@ -24,6 +39,7 @@ _bsrc_apply_theme() {
       ;;
   esac
 
+  PROMPT+=' $(_bsrc_python_env_prompt)'
   PROMPT+=' $(git_prompt_info)'
 }
 
