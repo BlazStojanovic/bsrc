@@ -14,6 +14,7 @@ Personal macOS dotfiles and CLI/editor setup.
 - `yazi`
 - `codex`
 - `claude`
+- `feynman`
 
 Explicitly excluded from this repo:
 
@@ -179,6 +180,21 @@ Neovim is now managed directly from
 
 Neovim-specific documentation lives in
 [nvim/README.md](/Users/blazstojanovic/Developer/bsrc/nvim/README.md).
+
+## Feynman
+
+The Feynman component installs the shared skills bundle for both agent homes:
+
+- `~/.codex/skills/feynman`
+- `~/.claude/skills/<skill-name>`
+
+It uses the official installer. Codex receives the Feynman bundle in a grouped
+directory, while Claude receives flattened skill directories because Claude
+discovers skills at `~/.claude/skills/<skill-name>/SKILL.md`:
+
+```bash
+curl -fsSL https://feynman.is/install-skills | bash
+```
 
 ## Current Direction
 

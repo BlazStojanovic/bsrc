@@ -19,6 +19,7 @@ components=(
   yazi
   codex
   claude
+  feynman
 )
 
 for component in "${components[@]}"; do
