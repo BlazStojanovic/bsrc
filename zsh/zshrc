@@ -10,6 +10,8 @@ export GOPATH="$XDG_STATE_HOME/go"
 export GOBIN="$HOME/.local/bin"
 export NPM_CONFIG_PREFIX="$HOME/.local"
 
+typeset -U path PATH
+
 path=(
   "$HOME/.local/bin"
   "$GOBIN"
