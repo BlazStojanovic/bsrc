@@ -17,6 +17,7 @@ components=(
   nvim
   btop
   yazi
+  peonping
   codex
   claude
   feynman

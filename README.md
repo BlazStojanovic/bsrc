@@ -12,6 +12,7 @@ Personal macOS dotfiles and CLI/editor setup.
 - `nvim`
 - `btop`
 - `yazi`
+- `peonping`
 - `codex`
 - `claude`
 - `feynman`
@@ -107,6 +108,7 @@ Ghostty is configured to use:
 The Ghostty config is macOS-specific and intentionally minimal. It currently
 manages:
 
+- Homebrew installation of the Ghostty app
 - the main config file
 - custom Monokai light/dark theme files
 - automatic light/dark theme switching
@@ -117,6 +119,18 @@ The theme pair is:
 
 - `monokai-custom` for dark mode
 - `monokai-custom-light` for light mode
+
+The installer writes both `~/.config/ghostty/config.ghostty` and the legacy
+`~/.config/ghostty/config` symlink so current and older Ghostty builds read the
+same managed config.
+
+## PeonPing
+
+The `peonping` component installs `peon-ping` from the official Homebrew tap
+and runs the bundled runtime installer so the shared adapter files exist under
+`~/.claude/hooks/peon-ping` for both Claude Code and Codex.
+
+The managed Codex config also wires `notify` to the `peon-ping` Codex adapter.
 
 ## Tmux
 

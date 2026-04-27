@@ -1,6 +1,7 @@
 theme = "ansi"
 model = "gpt-5.4"
 model_reasoning_effort = "high"
+notify = ["bash", "/Users/blazstojanovic/.claude/hooks/peon-ping/adapters/codex.sh"]
 
 [projects."/Users/blazstojanovic/Developer"]
 trust_level = "trusted"
@@ -18,4 +19,4 @@ trust_level = "trusted"
 trust_level = "trusted"
 
 [tui.model_availability_nux]
-"gpt-5.5" = 1
+"gpt-5.5" = 2
