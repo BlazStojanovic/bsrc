@@ -1,13 +1,12 @@
 {
-  "model": "sonnet",
-  "voiceEnabled": true,
+  "statusLine": {
+    "type": "command",
+    "command": "bash ~/.claude/statusline.sh"
+  },
   "voice": {
     "enabled": true,
     "mode": "hold"
   },
-  "theme": "system",
-  "statusLine": {
-    "type": "command",
-    "command": "bash ~/.claude/statusline.sh"
-  }
+  "skipAutoPermissionPrompt": true,
+  "voiceEnabled": true
 }

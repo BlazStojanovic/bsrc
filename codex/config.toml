@@ -18,5 +18,8 @@ trust_level = "trusted"
 [projects."/Users/blazstojanovic/Desktop/Poolside"]
 trust_level = "trusted"
 
+[projects."/Users/blazstojanovic/Developer/experiments"]
+trust_level = "trusted"
+
 [tui.model_availability_nux]
-"gpt-5.5" = 2
+"gpt-5.5" = 3
