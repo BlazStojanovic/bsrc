@@ -45,8 +45,55 @@ cd ~/Developer/bsrc
 ./setup.sh
 ```
 
+To also install the managed Claude Code and Codex MCP entries for Notion, Coda,
+Linear, and Grafana, use:
+
+```bash
+./setup.sh --with-mcps
+```
+
 The setup script is idempotent. It updates symlinks, creates missing config
 directories, and replaces managed paths so the repo stays the source of truth.
+
+## MCPs
+
+The repo can optionally install four managed MCPs for both Claude Code and
+Codex:
+
+- `notion`
+- `coda`
+- `linear`
+- `grafana`
+
+This is opt-in only. The default install path does not add them. You can enable
+them from the root installer with `./setup.sh --with-mcps`, or directly via:
+
+```bash
+./claude/install.sh --with-mcps
+./codex/install.sh --with-mcps
+```
+
+Implementation details:
+
+- Claude keeps the normal repo-managed files under `~/.claude`, and the opt-in installer adds missing user-scope MCP entries through the `claude` CLI.
+- Codex renders `~/.codex/config.toml` from the base repo config plus the optional fragment at [codex/mcp-servers.toml](/Users/blazstojanovic/Developer/bsrc/codex/mcp-servers.toml).
+
+Post-install auth and runtime requirements:
+
+- Notion for Codex still needs `codex mcp login notion`.
+- Linear for Codex still needs `codex mcp login linear`.
+- Notion, Coda, and Linear for Claude still need to be authenticated inside Claude Code via `/mcp`.
+- Coda for Codex expects `CODA_MCP_AUTH_TOKEN` in your environment. This uses Codex's native remote MCP support rather than baking a bearer token into the repo config.
+- Grafana for both clients expects `mcp-grafana` in `PATH`. If you want it to connect successfully, you also need the usual Grafana environment such as `GRAFANA_URL` and `GRAFANA_SERVICE_ACCOUNT_TOKEN`.
+
+Official docs:
+
+- Notion: https://developers.notion.com/guides/mcp/get-started-with-mcp
+- Coda: https://help.coda.io/hc/en-us/articles/44722661982989-Connect-to-the-Coda-MCP
+- Linear: https://linear.app/docs/mcp
+- Grafana MCP overview: https://grafana.com/docs/grafana/latest/developer-resources/mcp/
+- Grafana for Claude Code: https://grafana.com/docs/grafana/latest/developer-resources/mcp/clients/claude-code/
+- Grafana for Codex: https://grafana.com/docs/grafana/latest/developer-resources/mcp/clients/codex/
 
 ## Zsh
 
@@ -130,7 +177,8 @@ The `peonping` component installs `peon-ping` from the official Homebrew tap
 and runs the bundled runtime installer so the shared adapter files exist under
 `~/.claude/hooks/peon-ping` for both Claude Code and Codex.
 
-The managed Codex config also wires `notify` to the `peon-ping` Codex adapter.
+The base managed Codex config also wires `notify` to the `peon-ping` Codex
+adapter.
 
 ## Tmux
 
@@ -215,11 +263,11 @@ curl -fsSL https://feynman.is/install-skills | bash
 - macOS-only
 - Zsh-first
 - Neovim-first
-- automatic symlink-based setup
+- mostly symlink-based setup, with generated config where optional install-time features need composition
 - intentionally narrow scope
 
 Some tool-level choices are intentionally left for follow-up discussion:
 
 - final `zsh` alias/function set
 - Neovim plugin choices and defaults
-- what, if anything, should be managed under `~/.claude`
+- whether more Claude user-level state should be repo-managed beyond the current linked files and optional MCP setup

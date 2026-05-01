@@ -1,0 +1,19 @@
+# Optional MCPs enabled by `./setup.sh --with-mcps` or `./codex/install.sh --with-mcps`.
+# Docs:
+# - Notion: https://developers.notion.com/guides/mcp/get-started-with-mcp
+# - Coda: https://help.coda.io/hc/en-us/articles/44722661982989-Connect-to-the-Coda-MCP
+# - Linear: https://linear.app/docs/mcp
+# - Grafana (Codex): https://grafana.com/docs/grafana/latest/developer-resources/mcp/clients/codex/
+
+[mcp_servers.notion]
+url = "https://mcp.notion.com/mcp"
+
+[mcp_servers.coda]
+url = "https://coda.io/apis/mcp"
+bearer_token_env_var = "CODA_MCP_AUTH_TOKEN"
+
+[mcp_servers.linear]
+url = "https://mcp.linear.app/mcp"
+
+[mcp_servers.grafana]
+command = "mcp-grafana"
