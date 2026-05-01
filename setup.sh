@@ -59,5 +59,13 @@ for component in "${components[@]}"; do
   "$ROOT_DIR/$component/install.sh"
 done
 
+if [[ "$with_mcps" == "1" ]]; then
+  log "Managed MCP install summary:"
+  printf '  - Claude: /mcp auth required for notion, coda, and linear\n'
+  printf '  - Codex: run codex mcp login notion and codex mcp login linear\n'
+  printf '  - Coda for Codex: export CODA_MCP_AUTH_TOKEN\n'
+  printf '  - Grafana: ensure GRAFANA_URL and GRAFANA_SERVICE_ACCOUNT_TOKEN are set\n'
+fi
+
 log "Setup complete."
 log "Open a new terminal or run: source ~/.zshrc"

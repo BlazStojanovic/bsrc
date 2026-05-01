@@ -59,13 +59,43 @@ render_codex_config() {
   log "Installed Codex config: $dest"
 }
 
+print_codex_mcp_summary() {
+  log "Codex MCP summary: notion, coda, linear, grafana configured"
+
+  if have_cmd codex; then
+    warn "Codex still needs 'codex mcp login notion' and 'codex mcp login linear'."
+  else
+    warn "Codex CLI is not currently on PATH; config was written but login could not be verified."
+  fi
+
+  if [[ -n "${CODA_MCP_AUTH_TOKEN:-}" ]]; then
+    log "Coda token env detected: CODA_MCP_AUTH_TOKEN"
+  else
+    warn "Coda token env missing: CODA_MCP_AUTH_TOKEN"
+  fi
+
+  if have_cmd mcp-grafana; then
+    log "Grafana binary ready for Codex: $(command -v mcp-grafana)"
+  else
+    warn "Grafana binary still missing for Codex: mcp-grafana"
+  fi
+
+  if [[ -n "${GRAFANA_URL:-}" ]]; then
+    log "Grafana URL env detected: GRAFANA_URL"
+  else
+    warn "Grafana URL env missing: GRAFANA_URL"
+  fi
+
+  if [[ -n "${GRAFANA_SERVICE_ACCOUNT_TOKEN:-}" ]]; then
+    log "Grafana token env detected: GRAFANA_SERVICE_ACCOUNT_TOKEN"
+  else
+    warn "Grafana token env missing: GRAFANA_SERVICE_ACCOUNT_TOKEN"
+  fi
+}
+
 render_codex_config
 
 if [[ "$with_mcps" == "1" ]]; then
-  if ! command -v mcp-grafana >/dev/null 2>&1; then
-    warn "Grafana MCP is configured for Codex, but 'mcp-grafana' is not currently in PATH."
-  fi
-
-  warn "Run 'codex mcp login notion' and 'codex mcp login linear' to finish OAuth setup."
-  warn "Export CODA_MCP_AUTH_TOKEN before using the Codex Coda MCP."
+  install_grafana_mcp_binary
+  print_codex_mcp_summary
 fi

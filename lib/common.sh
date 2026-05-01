@@ -14,6 +14,10 @@ err() {
   printf "\033[1;31m[x]\033[0m %s\n" "$*" >&2
 }
 
+have_cmd() {
+  command -v "$1" >/dev/null 2>&1
+}
+
 repo_root() {
   cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd
 }
@@ -74,4 +78,55 @@ append_line_once() {
 
   printf '%s\n' "$line" >> "$dest"
   log "Updated: $dest"
+}
+
+bootstrap_homebrew_shellenv() {
+  if [[ -x /opt/homebrew/bin/brew ]]; then
+    eval "$(/opt/homebrew/bin/brew shellenv)"
+  fi
+}
+
+install_grafana_mcp_binary() {
+  local gobin="${GOBIN:-$HOME/.local/bin}"
+
+  ensure_dir "$gobin"
+  export GOBIN="$gobin"
+  export PATH="$GOBIN:$PATH"
+
+  if have_cmd mcp-grafana; then
+    log "Grafana MCP binary already installed: $(command -v mcp-grafana)"
+    return 0
+  fi
+
+  bootstrap_homebrew_shellenv
+
+  if ! have_cmd go; then
+    if have_cmd brew; then
+      if brew list go >/dev/null 2>&1; then
+        log "brew package already installed: go"
+      else
+        log "Installing brew package: go"
+        brew install go
+      fi
+    else
+      warn "go not found and Homebrew not found. Skipping mcp-grafana installation."
+      return 0
+    fi
+  fi
+
+  log "Installing Grafana MCP binary: mcp-grafana"
+  GOBIN="$GOBIN" go install github.com/grafana/mcp-grafana/cmd/mcp-grafana@latest
+
+  if have_cmd mcp-grafana; then
+    log "Installed Grafana MCP binary: $(command -v mcp-grafana)"
+    return 0
+  fi
+
+  if [[ -x "$GOBIN/mcp-grafana" ]]; then
+    log "Installed Grafana MCP binary: $GOBIN/mcp-grafana"
+    return 0
+  fi
+
+  err "mcp-grafana installation completed without a usable binary on PATH."
+  return 1
 }

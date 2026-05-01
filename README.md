@@ -77,6 +77,7 @@ Implementation details:
 
 - Claude keeps the normal repo-managed files under `~/.claude`, and the opt-in installer adds missing user-scope MCP entries through the `claude` CLI.
 - Codex renders `~/.codex/config.toml` from the base repo config plus the optional fragment at [codex/mcp-servers.toml](/Users/blazstojanovic/Developer/bsrc/codex/mcp-servers.toml).
+- The Grafana MCP binary is also installed automatically on the opt-in path. The installer uses Grafana's documented `go install` flow and installs Homebrew `go` first if needed.
 
 Post-install auth and runtime requirements:
 
@@ -84,7 +85,7 @@ Post-install auth and runtime requirements:
 - Linear for Codex still needs `codex mcp login linear`.
 - Notion, Coda, and Linear for Claude still need to be authenticated inside Claude Code via `/mcp`.
 - Coda for Codex expects `CODA_MCP_AUTH_TOKEN` in your environment. This uses Codex's native remote MCP support rather than baking a bearer token into the repo config.
-- Grafana for both clients expects `mcp-grafana` in `PATH`. If you want it to connect successfully, you also need the usual Grafana environment such as `GRAFANA_URL` and `GRAFANA_SERVICE_ACCOUNT_TOKEN`.
+- Grafana for both clients expects `GRAFANA_URL` and `GRAFANA_SERVICE_ACCOUNT_TOKEN` in your environment. The installer prints a lightweight readiness summary for these requirements when `--with-mcps` is used.
 
 Official docs:
 
@@ -92,6 +93,7 @@ Official docs:
 - Coda: https://help.coda.io/hc/en-us/articles/44722661982989-Connect-to-the-Coda-MCP
 - Linear: https://linear.app/docs/mcp
 - Grafana MCP overview: https://grafana.com/docs/grafana/latest/developer-resources/mcp/
+- Grafana binary install: https://grafana.com/docs/grafana/latest/developer-resources/mcp/set-up/install-the-binary/
 - Grafana for Claude Code: https://grafana.com/docs/grafana/latest/developer-resources/mcp/clients/claude-code/
 - Grafana for Codex: https://grafana.com/docs/grafana/latest/developer-resources/mcp/clients/codex/
 
