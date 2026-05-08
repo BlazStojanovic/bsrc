@@ -166,10 +166,13 @@
     "enabled": true,
     "mode": "hold"
   },
-  "skipAutoPermissionPrompt": true,
-  "voiceEnabled": true,
   "verbose": true,
   "preferredNotifChannel": "ghostty",
   "autoCompactEnabled": false,
-  "remoteControlAtStartup": true
+  "remoteControlAtStartup": true,
+  "skipAutoPermissionPrompt": true,
+  "voiceEnabled": true,
+  "enabledPlugins": {
+    "pyright-lsp@claude-plugins-official": true
+  }
 }

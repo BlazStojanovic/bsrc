@@ -97,3 +97,5 @@ alias lg='lazygit'
 if [[ -f /opt/homebrew/share/zsh/site-functions/_brew ]]; then
   fpath=(/opt/homebrew/share/zsh/site-functions $fpath)
 fi
+
+. "$HOME/.local/share/../bin/env"
