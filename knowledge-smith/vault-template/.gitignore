@@ -1,0 +1,35 @@
+# Heavy raw assets — recoverable from frontmatter where applicable.
+# `recover_raw.py` refetches these from arxiv ID / youtube_id.
+raw/papers/*.pdf
+raw/papers/*.epub
+raw/youtube/*.m4a
+raw/youtube/*.mp3
+raw/youtube/*.mp4
+raw/youtube/*.webm
+raw/youtube/*.wav
+
+# Belt-and-braces: a stray binary anywhere never gets committed by accident.
+*.pdf
+*.epub
+*.mp3
+*.m4a
+*.mp4
+*.mov
+*.webm
+*.wav
+
+# Obsidian local state
+.obsidian/workspace*
+.obsidian/cache
+.obsidian/.trash/
+.trash/
+
+# OS / editor
+.DS_Store
+*.swp
+.idea/
+.vscode/
+
+# Python caches if scripts run from inside the vault
+__pycache__/
+*.pyc
