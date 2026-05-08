@@ -162,6 +162,9 @@
     "type": "command",
     "command": "bash ~/.claude/statusline.sh"
   },
+  "enabledPlugins": {
+    "pyright-lsp@claude-plugins-official": true
+  },
   "voice": {
     "enabled": true,
     "mode": "hold"
@@ -172,7 +175,5 @@
   "remoteControlAtStartup": true,
   "skipAutoPermissionPrompt": true,
   "voiceEnabled": true,
-  "enabledPlugins": {
-    "pyright-lsp@claude-plugins-official": true
-  }
+  "agentPushNotifEnabled": true
 }
