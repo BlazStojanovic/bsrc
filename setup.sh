@@ -51,6 +51,7 @@ components=(
   peonping
   codex
   claude
+  knowledge-smith
   feynman
 )
 
