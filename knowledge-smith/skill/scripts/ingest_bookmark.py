@@ -3,17 +3,22 @@
 # requires-python = ">=3.11"
 # dependencies = ["python-frontmatter>=1.1"]
 # ///
-"""Write a blog, github, or course bookmark note into the active vault.
+"""Write a blog, post, github, or course bookmark note into the active vault.
 
 The agent extracts metadata (title, author/instructor, description)
 by WebFetch'ing the URL itself, then passes it via --metadata-json.
 This script just writes the note. No fetching, no regex.
+
+Use kind=blog for the *source* (a blog homepage / publication you
+follow). Use kind=post for an *individual article* you want to read
+or have read.
 
 For GitHub URLs the agent should also pass `owner` and `repo` (parsed
 from the URL) so the basename is `<owner>-<repo>.md`.
 
 Required JSON keys:
   blog:   title, url
+  post:   title, url   (author / source / year recommended)
   github: url   (title and owner/repo recommended)
   course: title, url   (instructor/institution/year recommended)
 
@@ -70,7 +75,8 @@ GITHUB_RE = re.compile(r"^https?://github\.com/([^/]+)/([^/?#]+)/?", re.I)
 
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument("--kind", choices=("blog", "github", "course"), required=True)
+    p.add_argument("--kind", choices=("blog", "post", "github", "course"),
+                   required=True)
     p.add_argument("--metadata-json", required=True,
                    help="JSON metadata, or '-' to read from stdin")
     p.add_argument("--force", action="store_true", help="overwrite existing note")
@@ -108,6 +114,25 @@ def main(argv: list[str] | None = None) -> int:
             "read": False,
             "tags": [],
             "url": url,
+            "description": meta.get("description"),
+        }
+    elif args.kind == "post":
+        title = meta["title"]
+        slug = meta.get("slug") or slugify(title)
+        basename = stub_filename(None, slug)
+        note_meta = {
+            "type": "note",
+            "kind": "post",
+            "slug": slug,
+            "title": title,
+            "created": today(),
+            "updated": today(),
+            "read": False,
+            "tags": [],
+            "url": url,
+            "author": meta.get("author"),
+            "source": meta.get("source"),
+            "year": meta.get("year"),
             "description": meta.get("description"),
         }
     elif args.kind == "course":

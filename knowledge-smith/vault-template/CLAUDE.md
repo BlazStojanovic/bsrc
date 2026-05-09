@@ -48,7 +48,8 @@ reading list is the queue.
 | `notes/papers/<year>-<slug>.md` | Paper summary notes | yes |
 | `notes/articles/<year>-<slug>.md` | Web-article summary notes | yes |
 | `notes/youtube/<year>-<slug>.md` | YouTube-video summary notes | yes |
-| `notes/blogs/<slug>.md` | Lightweight blog bookmarks (timeless) | yes |
+| `notes/blogs/<slug>.md` | Source-level blog bookmarks (a homepage / publication you follow) | yes |
+| `notes/posts/<slug>.md` | Individual blog-post / web-article bookmarks | yes |
 | `notes/github/<owner>-<repo>.md` | Lightweight GitHub bookmarks (timeless) | yes |
 | `notes/courses/<slug>.md` | Course / lecture-series bookmarks (timeless) | yes |
 | `reading-list/<kind>.md` | Generated index of unread notes (regen with `ks_reading_list.py`) | yes |
@@ -136,12 +137,27 @@ transcript_source: yt-auto | whisper
 ```
 
 ### `kind: blog`
+A *source* you follow — a blog homepage, newsletter, or research-blog
+landing page (e.g. `https://eugeneyan.com/`, `https://transformer-circuits.pub/`).
 ```yaml
 url: <url>
 author: <name> | null
-description: <one sentence>
+description: <one sentence about who/what the source covers>
 ```
-No raw, no recovery.
+No raw, no recovery. Use `kind: post` for an individual article.
+
+### `kind: post`
+An *individual* blog post or web article you want to read or have
+read. Treated as a timeless bookmark (no year prefix on filename),
+though `year` may be filled in when the post date is known.
+```yaml
+url: <url>
+author: <name> | null
+source: <publication or blog title> | null
+year: <int> | null
+description: <one sentence about the post> | null
+```
+No raw, no recovery — note + URL is the artifact.
 
 ### `kind: github`
 ```yaml
@@ -174,6 +190,7 @@ Recovery uses these identifiers when refetching binaries:
 | article | `sha1(url)[:10]` | best-effort URL refetch |
 | youtube | `youtube_id` | yt-dlp |
 | blog | none | pointer only |
+| post | none | pointer only |
 | github | none | note + URL is sufficient |
 | course | none | note + URL is sufficient |
 

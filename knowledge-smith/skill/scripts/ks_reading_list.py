@@ -35,7 +35,7 @@ from _ks_common import (  # noqa: E402
     write_frontmatter,
 )
 
-KINDS = ("paper", "article", "youtube", "blog", "github", "course")
+KINDS = ("paper", "article", "youtube", "blog", "post", "github", "course")
 DATED_KINDS = {"paper", "article", "youtube"}
 
 
@@ -73,6 +73,12 @@ def _entry_line(kind: str, meta: dict, basename: str) -> str:
     if kind == "blog":
         author = str(meta.get("author") or "").strip()
         suffix = f" — {author}" if author else ""
+        return f"- [[notes/{plural}/{stem}|{title}]]{suffix}"
+    if kind == "post":
+        author = str(meta.get("author") or "").strip()
+        source = str(meta.get("source") or "").strip()
+        bits = [b for b in (author, source) if b]
+        suffix = f" — {' · '.join(bits)}" if bits else ""
         return f"- [[notes/{plural}/{stem}|{title}]]{suffix}"
     if kind == "github":
         desc = str(meta.get("description") or "").strip()

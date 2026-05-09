@@ -56,7 +56,7 @@ from _ks_common import (  # noqa: E402
     write_frontmatter,
 )
 
-KINDS = ("paper", "article", "youtube", "blog", "github", "course")
+KINDS = ("paper", "article", "youtube", "blog", "post", "github", "course")
 TAG_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,30}$")
 ABSTRACT_HEADERS = ("## Abstract", "## abstract")
 

@@ -28,12 +28,13 @@ import frontmatter  # type: ignore[import-not-found]
 VAULT_MARKER = ".knowledge-smith"
 ENV_VAR = "KNOWLEDGE_SMITH_VAULT"
 
-Kind = Literal["paper", "article", "youtube", "blog", "github", "course"]
+Kind = Literal["paper", "article", "youtube", "blog", "post", "github", "course"]
 KIND_TO_PLURAL: dict[str, str] = {
     "paper": "papers",
     "article": "articles",
     "youtube": "youtube",
     "blog": "blogs",
+    "post": "posts",
     "github": "github",
     "course": "courses",
 }
@@ -254,6 +255,7 @@ REQUIRED_KEYS: dict[str, tuple[str, ...]] = {
     "article": ("title", "url"),
     "youtube": ("youtube_id", "title"),
     "blog": ("url", "title"),
+    "post": ("url", "title"),
     "github": ("url",),
     "course": ("url", "title"),
 }
@@ -325,6 +327,11 @@ def validate_metadata_json(payload: str, kind: str) -> dict[str, Any]:
         meta.setdefault("upload_date", None)
     elif kind == "blog":
         meta.setdefault("author", None)
+        meta.setdefault("description", None)
+    elif kind == "post":
+        meta["year"] = _coerce_year(meta.get("year"))
+        meta.setdefault("author", None)
+        meta.setdefault("source", None)
         meta.setdefault("description", None)
     elif kind == "github":
         meta.setdefault("description", None)

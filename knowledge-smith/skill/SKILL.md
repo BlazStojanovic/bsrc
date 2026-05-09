@@ -55,7 +55,8 @@ The path for `<script>` below is `~/.claude/skills/knowledge-smith/scripts/<scri
 | `youtube.com/watch` or `youtu.be` URL | `ingest_youtube.py` | `notes/youtube/<year>-<slug>.md` |
 | `github.com/owner/repo` URL | `ingest_bookmark.py --kind github` | `notes/github/<owner>-<repo>.md` |
 | Course / lecture-series homepage | `ingest_bookmark.py --kind course` | `notes/courses/<slug>.md` |
-| Any other web URL | `ingest_bookmark.py --kind blog` | `notes/blogs/<slug>.md` |
+| Blog homepage / newsletter / research-blog landing page | `ingest_bookmark.py --kind blog` | `notes/blogs/<slug>.md` |
+| Individual blog post / web article | `ingest_bookmark.py --kind post` | `notes/posts/<slug>.md` |
 
 ## How to ingest — arXiv
 
@@ -179,7 +180,7 @@ For `youtube.com/watch?v=<id>` or `youtu.be/<id>`:
 The user owns the audio file in `raw/youtube/<id>.audio.mp3` if they
 want it; that's gitignored.
 
-## How to ingest — bookmarks (blog, github, course)
+## How to ingest — bookmarks (blog, post, github, course)
 
 For any URL:
 
@@ -188,21 +189,38 @@ For any URL:
    - course / lecture-series homepage (Stanford/MIT/Coursera/etc.,
      `cs<NNN>`-style URLs, "course"/"lectures" in the title) →
      `kind=course`
-   - else → `kind=blog`
+   - **blog homepage** (root of a publication / newsletter / research
+     blog landing page — `eugeneyan.com`, `transformer-circuits.pub`,
+     `lilianweng.github.io`, etc.) → `kind=blog`
+   - **specific article** (a single post under a blog or publication
+     — `eugeneyan.com/writing/llm-evaluators/`,
+     `karpathy.github.io/2015/05/21/rnn-effectiveness/`) → `kind=post`
+   - if unsure, prefer `kind=post` for any URL with a path beyond `/`,
+     `kind=blog` only for the bare root URL of the source.
 
 2. **For github**: parse owner+repo from the URL. The user's
    `--description` (if given) is the hook. No fetching.
 
-3. **For blog**: WebFetch the URL:
+3. **For blog (a source)**: WebFetch the homepage:
    ```
    WebFetch:
      url: <url>
-     prompt: "Return JSON with keys: title (string),
-              author (string or null),
-              description (one sentence, or null)."
+     prompt: "Return JSON with keys: title (the blog or publication name),
+              author (the person/team behind it, or null),
+              description (one sentence on what they cover)."
    ```
 
-4. **Run the ingest script**:
+4. **For post (a specific article)**: WebFetch the article URL:
+   ```
+   WebFetch:
+     url: <url>
+     prompt: "Return JSON with keys: title, author (or null),
+              source (publication / blog name, or null),
+              year (publication year as int, or null),
+              description (one sentence summarizing the post)."
+   ```
+
+5. **Run the ingest script**:
    ```
    # github
    uv run ~/.claude/skills/knowledge-smith/scripts/ingest_bookmark.py \
@@ -211,11 +229,20 @@ For any URL:
                        "owner":"<owner>","repo":"<repo>",
                        "title":"<owner>/<repo>","description":"..."}'
 
-   # blog
+   # blog (a source)
    uv run ~/.claude/skills/knowledge-smith/scripts/ingest_bookmark.py \
      --kind blog \
-     --metadata-json '{"url":"...","title":"...","author":"...",
-                       "description":"..."}'
+     --metadata-json '{"url":"https://eugeneyan.com/",
+                       "title":"Eugene Yan","author":"Eugene Yan",
+                       "description":"Applied ML / ML systems / recsys."}'
+
+   # post (a specific article)
+   uv run ~/.claude/skills/knowledge-smith/scripts/ingest_bookmark.py \
+     --kind post \
+     --metadata-json '{"url":"https://eugeneyan.com/writing/llm-evaluators/",
+                       "title":"Evaluating the Effectiveness of LLM-Evaluators",
+                       "author":"Eugene Yan","source":"Eugene Yan",
+                       "year":2024,"description":"..."}'
 
    # course
    uv run ~/.claude/skills/knowledge-smith/scripts/ingest_bookmark.py \
