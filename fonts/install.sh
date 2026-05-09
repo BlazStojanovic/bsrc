@@ -41,15 +41,53 @@ if ! brew list fontforge >/dev/null 2>&1; then
 fi
 
 if command -v fontforge >/dev/null 2>&1; then
+  # fontforge prints a banner and several known-benign warnings on every
+  # invocation: its embedded Python lacks `pkg_resources` (we don't use
+  # plugins), the upstream Hack font has a `heart` glyph mapping mismatch
+  # (not ours to fix), `removeOverlap()` complains about spline geometry
+  # while still producing valid output, and the legacy SVG color parser
+  # doesn't understand `color(display-p3 …)`. Filter that noise so real
+  # errors stay visible. We capture to a tempfile (rather than rely on
+  # PIPESTATUS) so the actual exit status is preserved cleanly.
+  filter_fontforge_noise() {
+    grep -v -E -e '^Copyright \(c\) [0-9]+-[0-9]+\. See AUTHORS' \
+                -e '^ License GPLv3\+' \
+                -e '^ with many parts BSD' \
+                -e '^ Version: ' \
+                -e '^ Based on sources from ' \
+                -e "^Core python package 'pkg_resources' not found" \
+                -e '^The glyph named heart is mapped to ' \
+                -e '^But its name indicates it should be mapped to ' \
+                -e '^Internal Error \(overlap\) in bsrc_' \
+                -e '^Failed to parse color color\(display-p3' \
+                || true
+  }
+
   build_custom_font() {
     local src="$1"
     local out="$2"
-    local tmp
+    local tmp ff_log status
 
     [[ -f "$src" ]] || return 0
     log "Building patched font: $(basename "$out")"
     tmp="$(mktemp "/tmp/$(basename "$out" .ttf).XXXXXX.ttf")"
-    fontforge -lang=py -script "$BUILD_SCRIPT" "$src" "$tmp" "$ASSETS_DIR"
+    ff_log="$(mktemp "/tmp/$(basename "$out" .ttf).XXXXXX.log")"
+
+    set +e
+    fontforge -lang=py -script "$BUILD_SCRIPT" "$src" "$tmp" "$ASSETS_DIR" \
+      >"$ff_log" 2>&1
+    status=$?
+    set -e
+
+    filter_fontforge_noise <"$ff_log"
+    rm -f "$ff_log"
+
+    if [[ "$status" -ne 0 ]]; then
+      err "fontforge failed building $(basename "$out") (exit $status)"
+      rm -f "$tmp"
+      return "$status"
+    fi
+
     mv "$tmp" "$out"
   }
 
