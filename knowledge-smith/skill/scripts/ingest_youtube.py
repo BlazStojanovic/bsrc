@@ -32,7 +32,7 @@ from _ks_common import (  # noqa: E402
     die,
     find_vault,
     info,
-    inbox_path,
+    note_path,
     raw_path,
     refuse_if_exists,
     slugify,
@@ -205,28 +205,27 @@ def main(argv: list[str] | None = None) -> int:
 
     slug = slugify(title)
     stub = stub_filename(year, slug)
-    inbox_target = inbox_path(vault, stub)
-    refuse_if_exists(inbox_target, args.force)
+    note_target = note_path(vault, "youtube", stub)
+    refuse_if_exists(note_target, args.force)
 
     raw_audio_path = raw_path(vault, "youtube", f"{youtube_id}.audio.m4a")
-    stub_meta = {
-        "type": "source",
-        "source_kind": "youtube",
-        "status": "captured",
+    note_meta = {
+        "type": "note",
+        "kind": "youtube",
         "slug": slug,
         "title": title,
         "created": today(),
         "updated": today(),
+        "read": False,
         "tags": [],
-        "id": youtube_id,
-        "indexed_in": [],
+        "year": year,
         "youtube_id": youtube_id,
         "url": f"https://youtu.be/{youtube_id}",
         "channel": channel,
         "channel_id": channel_id,
         "duration_seconds": duration_seconds,
         "upload_date": upload_date,
-        "raw_audio": raw_audio_path.relative_to(vault).as_posix(),
+        "raw_audio": None,
         "raw_transcript": raw_transcript_target.relative_to(vault).as_posix(),
         "raw_metadata": raw_metadata_target.relative_to(vault).as_posix(),
         "transcript_source": transcript_source,
@@ -235,20 +234,20 @@ def main(argv: list[str] | None = None) -> int:
         f"# {title}\n\n"
         f"> *{channel or 'unknown'}* — uploaded {upload_date or '?'}"
         f" — {duration_seconds}s\n\n"
-        "## Summary\n\n"
+        "## TL;DR\n\n"
         "(stub)\n\n"
         "## Notes\n\n"
         "(stub)\n\n"
         "## Source\n\n"
         f"- Transcript: [[raw/youtube/{youtube_id}.transcript]]\n"
         f"- Metadata: `raw/youtube/{youtube_id}.metadata.json`\n"
-        f"- Audio (gitignored, slice-2): `raw/youtube/{youtube_id}.audio.m4a`\n"
+        f"- Audio (gitignored, slice-2): `{raw_audio_path.relative_to(vault).as_posix()}`\n"
         f"- Original: <https://youtu.be/{youtube_id}>\n"
     )
-    write_frontmatter(inbox_target, stub_meta, body)
-    info(f"wrote: {inbox_target.relative_to(vault)}")
+    write_frontmatter(note_target, note_meta, body)
+    info(f"wrote: {note_target.relative_to(vault)}")
 
-    print(f"inbox={inbox_target}")
+    print(f"note={note_target}")
     print(f"raw_metadata={raw_metadata_target}")
     print(f"raw_transcript={raw_transcript_target}")
     print(f"transcript_source={transcript_source}")

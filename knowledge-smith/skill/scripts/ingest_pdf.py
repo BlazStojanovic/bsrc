@@ -30,7 +30,7 @@ from _ks_common import (  # noqa: E402
     die,
     find_vault,
     info,
-    inbox_path,
+    note_path,
     raw_path,
     refuse_if_exists,
     sha1_short,
@@ -118,9 +118,9 @@ def main(argv: list[str] | None = None) -> int:
 
         raw_pdf_target = raw_path(vault, "paper", f"{sha}.pdf")
         raw_md_target = raw_path(vault, "paper", f"{sha}.md")
-        inbox_target = inbox_path(vault, stub_filename(year, slug))
+        note_target = note_path(vault, "paper", stub_filename(year, slug))
 
-        refuse_if_exists(inbox_target, args.force)
+        refuse_if_exists(note_target, args.force)
         if raw_pdf_target.exists() and not args.force:
             warn(f"raw_pdf already present, skipping copy: {raw_pdf_target}")
         else:
@@ -143,22 +143,20 @@ def main(argv: list[str] | None = None) -> int:
     write_frontmatter(raw_md_target, raw_md_meta, body_md)
     info(f"wrote: {raw_md_target.relative_to(vault)}")
 
-    stub_meta = {
-        "type": "source",
-        "source_kind": "paper",
-        "status": "captured",
+    note_meta = {
+        "type": "note",
+        "kind": "paper",
         "slug": slug,
         "title": title,
         "created": today(),
         "updated": today(),
+        "read": False,
         "tags": [],
-        "id": sha,
-        "indexed_in": [],
+        "year": year,
+        "authors": authors,
         "arxiv": None,
         "doi": None,
         "url": args.input if args.input.startswith(("http://", "https://")) else None,
-        "authors": authors,
-        "year": year,
         "venue": None,
         "raw_pdf": raw_pdf_target.relative_to(vault).as_posix(),
         "raw_md": raw_md_target.relative_to(vault).as_posix(),
@@ -168,17 +166,17 @@ def main(argv: list[str] | None = None) -> int:
         f"# {title}\n\n"
         f"> {', '.join(authors) if authors else 'unknown authors'} — {year}\n\n"
         "## TL;DR\n\n"
-        "(stub)\n\n"
+        "(stub — fill in after reading)\n\n"
         "## Notes\n\n"
-        "(stub)\n\n"
+        "(your synthesis)\n\n"
         "## Source\n\n"
         f"- Raw markdown: [[raw/papers/{sha}]]\n"
         f"- PDF (gitignored): `raw/papers/{sha}.pdf`\n"
     )
-    write_frontmatter(inbox_target, stub_meta, body)
-    info(f"wrote: {inbox_target.relative_to(vault)}")
+    write_frontmatter(note_target, note_meta, body)
+    info(f"wrote: {note_target.relative_to(vault)}")
 
-    print(f"inbox={inbox_target}")
+    print(f"note={note_target}")
     print(f"raw_md={raw_md_target}")
     print(f"raw_pdf={raw_pdf_target}")
     print(f"id={sha}")

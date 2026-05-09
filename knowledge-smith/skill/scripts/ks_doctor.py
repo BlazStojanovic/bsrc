@@ -5,8 +5,9 @@
 # ///
 """Health check + vault scaffolding for knowledge-smith.
 
-Default mode: report active vault, counts, frontmatter validation, orphan
-raws, stale references, unindexed sources, tag aggregation.
+Default mode: report active vault, counts in `notes/<kind>/`, frontmatter
+validation, orphan raws, stale references, tag aggregation, reading-list
+freshness.
 
 `--init <path>` mode: scaffold a new vault at <path> by copying
 `vault-template/` from this skill bundle. Refuses if <path> already exists
@@ -19,10 +20,12 @@ import argparse
 import shutil
 import sys
 from collections import Counter
+from datetime import datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from _ks_common import (  # noqa: E402
+    KIND_TO_PLURAL,
     die,
     find_vault,
     info,
@@ -30,22 +33,11 @@ from _ks_common import (  # noqa: E402
     warn,
 )
 
-SOURCE_KINDS = ("paper", "article", "youtube", "blog", "github")
-SOURCE_DIR = {
-    "paper": "papers",
-    "article": "articles",
-    "youtube": "youtube",
-    "blog": "blogs",
-    "github": "github",
-}
+KINDS = ("paper", "article", "youtube", "blog", "github")
 RAW_KINDS_WITH_DIR = {"paper": "papers", "article": "articles", "youtube": "youtube"}
 
 
 def _vault_template_dir() -> Path:
-    """Locate vault-template/ alongside the skill bundle.
-
-    Path resolution follows symlinks back to bsrc/knowledge-smith/vault-template.
-    """
     here = Path(__file__).resolve()
     candidate = here.parent.parent.parent / "vault-template"
     if not candidate.is_dir():
@@ -61,7 +53,6 @@ def cmd_init(target: Path) -> int:
     target = target.expanduser().resolve()
 
     if target.exists():
-        # Allow if only a .git/ dir exists (user pre-created a repo).
         contents = [p for p in target.iterdir() if p.name != ".git"]
         if contents:
             die(
@@ -84,7 +75,6 @@ def cmd_init(target: Path) -> int:
 
 
 def _copytree(src: Path, dst: Path) -> None:
-    """Copy src into dst without overwriting existing files."""
     for entry in src.iterdir():
         target = dst / entry.name
         if entry.is_dir():
@@ -106,25 +96,24 @@ def cmd_report() -> int:
     print(f"rule:  {vault.rule}")
     print()
 
-    inbox_counts, source_counts = _count_sources(vault.path)
-    print("counts")
-    print(f"  inbox/                     {sum(inbox_counts.values())}")
-    for kind in SOURCE_KINDS:
-        print(f"    {kind:8s}                 {inbox_counts.get(kind, 0)}")
-    print(f"  sources/                   {sum(source_counts.values())}")
-    for kind in SOURCE_KINDS:
-        print(f"    {SOURCE_DIR[kind]:8s}                 {source_counts.get(kind, 0)}")
-    notes_count = _count_files(vault.path / "notes")
-    topics_count = _count_files(vault.path / "topics")
-    print(f"  notes/                     {notes_count}")
-    print(f"  topics/                    {topics_count}")
+    counts, read_counts = _count_notes(vault.path)
+    total_notes = sum(counts.values())
+    total_unread = sum(counts[k] - read_counts.get(k, 0) for k in counts)
+    print(f"notes/ ({total_notes} total, {total_unread} unread)")
+    for kind in KINDS:
+        c = counts.get(kind, 0)
+        r = read_counts.get(kind, 0)
+        unread = c - r
+        print(f"  {KIND_TO_PLURAL[kind]:8s}  {c:4d} total  ({unread:4d} unread)")
     print()
 
     issues = _validate(vault.path)
     if issues:
         print(f"validation issues ({len(issues)})")
-        for issue in issues:
+        for issue in issues[:30]:
             print(f"  {issue}")
+        if len(issues) > 30:
+            print(f"  ... and {len(issues) - 30} more")
         print()
     else:
         print("validation: ok")
@@ -132,24 +121,26 @@ def cmd_report() -> int:
     orphans = _find_orphan_raws(vault.path)
     if orphans:
         print(f"orphan raw files ({len(orphans)})")
-        for path in orphans:
+        for path in orphans[:20]:
             print(f"  {path.relative_to(vault.path)}")
+        if len(orphans) > 20:
+            print(f"  ... and {len(orphans) - 20} more")
         print()
 
     stale = _find_stale_refs(vault.path)
     if stale:
-        # Stale gitignored binaries (PDF, audio) are expected after a fresh
-        # clone — that's why recover_raw.py exists. Report as info, not error.
         print(f"stale binary refs ({len(stale)}) — run recover_raw.py")
-        for path, missing in stale:
+        for path, missing in stale[:20]:
             print(f"  {path.relative_to(vault.path)} -> {missing}")
+        if len(stale) > 20:
+            print(f"  ... and {len(stale) - 20} more")
         print()
 
-    unindexed = _find_unindexed(vault.path)
-    if unindexed:
-        print(f"unindexed registered sources ({len(unindexed)})")
-        for path in unindexed:
-            print(f"  {path.relative_to(vault.path)}")
+    rl_status = _reading_list_freshness(vault.path)
+    if rl_status:
+        print("reading-list")
+        for line in rl_status:
+            print(f"  {line}")
         print()
 
     tags = _aggregate_tags(vault.path)
@@ -158,30 +149,25 @@ def cmd_report() -> int:
         for tag, count in tags.most_common(20):
             print(f"  {count:4d}  {tag}")
 
-    has_errors = bool(issues)
-    return 1 if has_errors else 0
+    return 1 if issues else 0
 
 
-def _count_sources(vault: Path) -> tuple[Counter[str], Counter[str]]:
-    inbox = Counter()
-    sources = Counter()
-    for md in (vault / "inbox").rglob("*.md"):
-        meta, _ = _safe_read(md)
-        kind = meta.get("source_kind") if meta else None
-        if isinstance(kind, str):
-            inbox[kind] += 1
-    for kind in SOURCE_KINDS:
-        d = vault / "sources" / SOURCE_DIR[kind]
-        if d.is_dir():
-            for md in d.rglob("*.md"):
-                sources[kind] += 1
-    return inbox, sources
-
-
-def _count_files(path: Path) -> int:
-    if not path.is_dir():
-        return 0
-    return sum(1 for _ in path.rglob("*.md"))
+def _count_notes(vault: Path) -> tuple[Counter[str], Counter[str]]:
+    counts: Counter[str] = Counter()
+    read_counts: Counter[str] = Counter()
+    notes_root = vault / "notes"
+    if not notes_root.is_dir():
+        return counts, read_counts
+    for kind in KINDS:
+        d = notes_root / KIND_TO_PLURAL[kind]
+        if not d.is_dir():
+            continue
+        for md in d.rglob("*.md"):
+            counts[kind] += 1
+            meta, _ = _safe_read(md)
+            if meta and meta.get("read") is True:
+                read_counts[kind] += 1
+    return counts, read_counts
 
 
 def _safe_read(path: Path) -> tuple[dict | None, str | None]:
@@ -193,16 +179,19 @@ def _safe_read(path: Path) -> tuple[dict | None, str | None]:
         return None, None
 
 
-REQUIRED_CORE = ("type", "status", "slug", "title", "created", "updated")
+REQUIRED_CORE = ("type", "slug", "title", "created", "updated")
 
 
 def _validate(vault: Path) -> list[str]:
     issues: list[str] = []
-    for sub in ("inbox", "sources", "notes", "topics"):
-        root = vault / sub
-        if not root.is_dir():
+    notes_root = vault / "notes"
+    if not notes_root.is_dir():
+        return issues
+    for kind in KINDS:
+        d = notes_root / KIND_TO_PLURAL[kind]
+        if not d.is_dir():
             continue
-        for md in root.rglob("*.md"):
+        for md in d.rglob("*.md"):
             meta, _ = _safe_read(md)
             if meta is None:
                 issues.append(f"{md.relative_to(vault)}: unparseable frontmatter")
@@ -210,26 +199,23 @@ def _validate(vault: Path) -> list[str]:
             for field in REQUIRED_CORE:
                 if field not in meta:
                     issues.append(f"{md.relative_to(vault)}: missing '{field}'")
-            t = meta.get("type")
-            if t == "source":
-                if "source_kind" not in meta:
-                    issues.append(f"{md.relative_to(vault)}: source missing 'source_kind'")
-                if "id" not in meta:
-                    issues.append(f"{md.relative_to(vault)}: source missing 'id'")
+            if meta.get("type") != "note":
+                issues.append(f"{md.relative_to(vault)}: type must be 'note'")
+            if meta.get("kind") != kind:
+                issues.append(f"{md.relative_to(vault)}: kind must be {kind!r}")
+            if "read" not in meta or not isinstance(meta.get("read"), bool):
+                issues.append(f"{md.relative_to(vault)}: missing or non-bool 'read'")
     return issues
 
 
 def _find_orphan_raws(vault: Path) -> list[Path]:
-    """Files under raw/ that no inbox/sources entry references."""
     raw_root = vault / "raw"
     if not raw_root.is_dir():
         return []
     referenced: set[str] = set()
-    for sub in ("inbox", "sources"):
-        root = vault / sub
-        if not root.is_dir():
-            continue
-        for md in root.rglob("*.md"):
+    notes_root = vault / "notes"
+    if notes_root.is_dir():
+        for md in notes_root.rglob("*.md"):
             meta, _ = _safe_read(md)
             if not meta:
                 continue
@@ -248,77 +234,61 @@ def _find_orphan_raws(vault: Path) -> list[Path]:
 
 
 def _find_stale_refs(vault: Path) -> list[tuple[Path, str]]:
-    """Source notes referencing raw_* paths that don't exist on disk."""
     stale: list[tuple[Path, str]] = []
-    for sub in ("inbox", "sources"):
-        root = vault / sub
-        if not root.is_dir():
-            continue
-        for md in root.rglob("*.md"):
-            meta, _ = _safe_read(md)
-            if not meta:
-                continue
-            for key in ("raw_pdf", "raw_md", "raw_audio", "raw_transcript", "raw_metadata"):
-                val = meta.get(key)
-                if isinstance(val, str) and val:
-                    target = vault / val
-                    if not target.exists():
-                        stale.append((md, val))
-    return stale
-
-
-def _find_unindexed(vault: Path) -> list[Path]:
-    """sources/ files with status registered/indexed not referenced from any note's `sources:`."""
-    sources_root = vault / "sources"
     notes_root = vault / "notes"
-    if not sources_root.is_dir():
-        return []
-
-    referenced: set[str] = set()
-    if notes_root.is_dir():
-        for md in notes_root.rglob("*.md"):
-            meta, _ = _safe_read(md)
-            if not meta:
-                continue
-            for ref in meta.get("sources", []) or []:
-                if isinstance(ref, str):
-                    referenced.add(ref.strip("[]"))
-
-    unindexed: list[Path] = []
-    for md in sources_root.rglob("*.md"):
+    if not notes_root.is_dir():
+        return stale
+    for md in notes_root.rglob("*.md"):
         meta, _ = _safe_read(md)
         if not meta:
             continue
-        if meta.get("status") not in ("registered", "indexed"):
+        for key in ("raw_pdf", "raw_md", "raw_audio", "raw_transcript", "raw_metadata"):
+            val = meta.get(key)
+            if isinstance(val, str) and val:
+                if not (vault / val).exists():
+                    stale.append((md, val))
+    return stale
+
+
+def _reading_list_freshness(vault: Path) -> list[str]:
+    rl = vault / "reading-list"
+    if not rl.is_dir():
+        return ["no reading-list/ directory — run ks_reading_list.py --all"]
+    lines = []
+    for kind in KINDS:
+        page = rl / f"{KIND_TO_PLURAL[kind]}.md"
+        if not page.is_file():
+            lines.append(f"{KIND_TO_PLURAL[kind]:8s}  not generated — run ks_reading_list.py --kind {kind}")
             continue
-        # The slug we'd see in a [[wikilink]] is the filename without ext,
-        # optionally prefixed with sources/<kind>/.
-        rel = md.relative_to(vault).with_suffix("").as_posix()
-        candidates = {rel, md.stem}
-        if not (referenced & candidates):
-            unindexed.append(md)
-    return unindexed
+        meta, _ = _safe_read(page)
+        gen = meta.get("generated") if meta else None
+        if not isinstance(gen, str):
+            lines.append(f"{KIND_TO_PLURAL[kind]:8s}  unparseable 'generated:' field")
+            continue
+        try:
+            gen_dt = datetime.fromisoformat(gen.replace("Z", "+00:00"))
+            age_days = (datetime.now(timezone.utc) - gen_dt).days
+            stale_marker = " (stale)" if age_days > 7 else ""
+            lines.append(f"{KIND_TO_PLURAL[kind]:8s}  generated {gen_dt.date()} ({age_days}d ago){stale_marker}")
+        except ValueError:
+            lines.append(f"{KIND_TO_PLURAL[kind]:8s}  generated: {gen}")
+    return lines
 
 
 def _aggregate_tags(vault: Path) -> Counter[str]:
     counts: Counter[str] = Counter()
-    for sub in ("inbox", "sources", "notes", "topics"):
-        root = vault / sub
-        if not root.is_dir():
+    notes_root = vault / "notes"
+    if not notes_root.is_dir():
+        return counts
+    for md in notes_root.rglob("*.md"):
+        meta, _ = _safe_read(md)
+        if not meta:
             continue
-        for md in root.rglob("*.md"):
-            meta, _ = _safe_read(md)
-            if not meta:
-                continue
-            for tag in meta.get("tags", []) or []:
-                if isinstance(tag, str) and tag.strip():
-                    counts[tag.strip()] += 1
+        for tag in meta.get("tags", []) or []:
+            if isinstance(tag, str) and tag.strip():
+                counts[tag.strip()] += 1
     return counts
 
-
-# ---------------------------------------------------------------------------
-# main
-# ---------------------------------------------------------------------------
 
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description=__doc__)

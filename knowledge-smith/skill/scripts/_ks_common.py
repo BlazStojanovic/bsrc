@@ -27,8 +27,33 @@ import frontmatter  # type: ignore[import-not-found]
 VAULT_MARKER = ".knowledge-smith"
 ENV_VAR = "KNOWLEDGE_SMITH_VAULT"
 
-SourceKind = Literal["paper", "article", "youtube", "blog", "github"]
-RAW_DIRS = {"paper": "papers", "article": "articles", "youtube": "youtube"}
+Kind = Literal["paper", "article", "youtube", "blog", "github"]
+KIND_TO_PLURAL: dict[str, str] = {
+    "paper": "papers",
+    "article": "articles",
+    "youtube": "youtube",
+    "blog": "blogs",
+    "github": "github",
+}
+# Subset of kinds that have associated raw assets on disk.
+RAW_DIRS: dict[str, str] = {
+    "paper": "papers",
+    "article": "articles",
+    "youtube": "youtube",
+}
+
+# Default tag vocabulary used by ks_tag.py. A vault may override by writing
+# its own one-tag-per-line file at <vault>/.ks-tag-vocab.
+DEFAULT_TAG_VOCAB: list[str] = [
+    "ml", "transformer", "attention", "tabular", "gnn", "llm", "rag",
+    "retrieval", "fairness", "calibration", "uncertainty", "benchmark",
+    "fine-tuning", "pretraining", "self-supervised", "contrastive",
+    "distillation", "interpretability", "missing-data",
+    "mixture-of-experts", "scaling-laws", "agents", "rl", "optimization",
+    "generalization", "theory", "reproducibility", "vision", "nlp",
+    "recsys", "diffusion", "rlhf", "alignment", "evaluation", "book",
+    "survey",
+]
 
 
 # ---------------------------------------------------------------------------
@@ -154,19 +179,23 @@ def write_frontmatter(path: Path, meta: dict[str, Any], body: str) -> None:
 # Path helpers.
 # ---------------------------------------------------------------------------
 
-def inbox_path(vault: Path, basename: str) -> Path:
-    return vault / "inbox" / basename
+def note_path(vault: Path, kind: str, basename: str) -> Path:
+    """Where a note for a given kind lives: <vault>/notes/<kind-plural>/<basename>."""
+    folder = KIND_TO_PLURAL.get(kind)
+    if folder is None:
+        raise ValueError(f"unknown kind={kind!r}")
+    return vault / "notes" / folder / basename
 
 
-def source_path(vault: Path, kind: SourceKind, basename: str) -> Path:
-    folder = "papers" if kind == "paper" else f"{kind}s"
-    return vault / "sources" / folder / basename
+def reading_list_path(vault: Path, kind_plural: str) -> Path:
+    """Generated reading-list page for a kind: <vault>/reading-list/<plural>.md."""
+    return vault / "reading-list" / f"{kind_plural}.md"
 
 
-def raw_path(vault: Path, kind: SourceKind, basename: str) -> Path:
+def raw_path(vault: Path, kind: str, basename: str) -> Path:
     folder = RAW_DIRS.get(kind)
     if folder is None:
-        raise ValueError(f"no raw subdir defined for source_kind={kind!r}")
+        raise ValueError(f"no raw subdir defined for kind={kind!r}")
     return vault / "raw" / folder / basename
 
 
@@ -175,6 +204,20 @@ def stub_filename(year: int | None, slug: str) -> str:
     if year is None:
         return f"{slug}.md"
     return f"{year}-{slug}.md"
+
+
+def load_tag_vocab(vault: Path) -> list[str]:
+    """Read <vault>/.ks-tag-vocab if present, else return DEFAULT_TAG_VOCAB."""
+    custom = vault / ".ks-tag-vocab"
+    if custom.is_file():
+        tags = []
+        for line in custom.read_text(encoding="utf-8").splitlines():
+            t = line.strip()
+            if t and not t.startswith("#"):
+                tags.append(t)
+        if tags:
+            return tags
+    return list(DEFAULT_TAG_VOCAB)
 
 
 # ---------------------------------------------------------------------------

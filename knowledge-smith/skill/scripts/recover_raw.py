@@ -6,11 +6,10 @@
 #   "python-frontmatter>=1.1",
 # ]
 # ///
-"""Refetch gitignored binaries (paper PDFs) from source frontmatter.
+"""Refetch gitignored binaries (paper PDFs) from note frontmatter.
 
-Walks `inbox/` and `sources/` in the active vault. For each source whose raw
-binary is missing on disk, refetches it using the stable identifier in the
-frontmatter:
+Walks `notes/<kind>/` in the active vault. For each note whose raw binary is
+missing on disk, refetches it using the stable identifier in the frontmatter:
 
   - paper: `arxiv` field -> https://arxiv.org/pdf/<id>.pdf
   - article: best-effort URL refetch (often broken; warned)
@@ -27,6 +26,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from _ks_common import (  # noqa: E402
+    KIND_TO_PLURAL,
     find_vault,
     info,
     read_frontmatter,
@@ -34,7 +34,7 @@ from _ks_common import (  # noqa: E402
 )
 
 
-SOURCE_KINDS = ("paper", "article", "youtube")
+KINDS = ("paper", "article", "youtube")
 
 
 def _stream_to_file(url: str, dest: Path) -> bool:
@@ -59,7 +59,6 @@ def _stream_to_file(url: str, dest: Path) -> bool:
 
 
 def recover_paper(meta: dict, vault: Path, dry_run: bool) -> tuple[int, int]:
-    """Returns (planned, recovered)."""
     arxiv_id = meta.get("arxiv")
     raw_pdf = meta.get("raw_pdf")
     if not (arxiv_id and raw_pdf):
@@ -95,7 +94,6 @@ def recover_youtube(meta: dict, vault: Path, dry_run: bool) -> tuple[int, int]:
     target = vault / raw_audio
     if target.exists():
         return 0, 0
-    # Audio fetch is slice-2; in slice 1 we report and skip.
     return 0, 0
 
 
@@ -108,8 +106,8 @@ HANDLERS = {
 
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument("--kind", choices=SOURCE_KINDS,
-                   help="restrict to a single source_kind")
+    p.add_argument("--kind", choices=KINDS,
+                   help="restrict to a single kind")
     p.add_argument("--dry-run", action="store_true",
                    help="report planned fetches without downloading")
     args = p.parse_args(argv)
@@ -119,25 +117,25 @@ def main(argv: list[str] | None = None) -> int:
 
     total_planned = 0
     total_recovered = 0
-    for sub in ("inbox", "sources"):
-        root = vault / sub
-        if not root.is_dir():
+    notes_root = vault / "notes"
+    if not notes_root.is_dir():
+        warn(f"no notes/ directory: {notes_root}")
+        return 0
+
+    for kind in KINDS:
+        if args.kind and kind != args.kind:
             continue
-        for md in root.rglob("*.md"):
+        kind_dir = notes_root / KIND_TO_PLURAL[kind]
+        if not kind_dir.is_dir():
+            continue
+        handler = HANDLERS[kind]
+        for md in kind_dir.rglob("*.md"):
             try:
                 meta, _ = read_frontmatter(md)
             except Exception as exc:
                 warn(f"skipping unparseable {md}: {exc}")
                 continue
-            if meta.get("type") != "source":
-                continue
-            kind = meta.get("source_kind")
-            if not isinstance(kind, str):
-                continue
-            if args.kind and kind != args.kind:
-                continue
-            handler = HANDLERS.get(kind)
-            if handler is None:
+            if meta.get("type") != "note" or meta.get("kind") != kind:
                 continue
             planned, recovered = handler(meta, vault, args.dry_run)
             total_planned += planned

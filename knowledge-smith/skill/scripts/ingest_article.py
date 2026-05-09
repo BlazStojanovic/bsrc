@@ -8,7 +8,7 @@
 Reads frontmatter the clipper produced (url, title, author, publication,
 published), normalizes it, copies the file under raw/articles/<year>-<slug>.md
 preserving the clipper's original keys under a `clipper:` block, and writes
-the source stub to inbox/<year>-<slug>.md.
+the article note to notes/articles/<year>-<slug>.md with read=false.
 """
 
 from __future__ import annotations
@@ -24,7 +24,7 @@ from _ks_common import (  # noqa: E402
     die,
     find_vault,
     info,
-    inbox_path,
+    note_path,
     raw_path,
     read_frontmatter,
     refuse_if_exists,
@@ -83,10 +83,10 @@ def main(argv: list[str] | None = None) -> int:
 
     vault = find_vault().path
     raw_target = raw_path(vault, "article", stub)
-    inbox_target = inbox_path(vault, stub)
+    note_target = note_path(vault, "article", stub)
 
     refuse_if_exists(raw_target, args.force)
-    refuse_if_exists(inbox_target, args.force)
+    refuse_if_exists(note_target, args.force)
 
     info(f"vault: {vault}")
     info(f"clipper: {src}")
@@ -111,18 +111,17 @@ def main(argv: list[str] | None = None) -> int:
     # consumers; we don't move/delete user files.
     info(f"wrote: {raw_target.relative_to(vault)}")
 
-    # 2. Inbox stub
-    stub_meta = {
-        "type": "source",
-        "source_kind": "article",
-        "status": "captured",
+    # 2. Article note
+    note_meta = {
+        "type": "note",
+        "kind": "article",
         "slug": slug,
         "title": title,
         "created": today(),
         "updated": today(),
+        "read": False,
         "tags": [],
-        "id": article_id,
-        "indexed_in": [],
+        "year": year,
         "url": url,
         "author": author,
         "publication": publication,
@@ -131,21 +130,23 @@ def main(argv: list[str] | None = None) -> int:
         "clipper": "obsidian-web-clipper",
     }
     excerpt = _excerpt(body)
-    stub_body = (
+    note_body = (
         f"# {title}\n\n"
         f"> *{author or 'unknown'}* — {publication or 'unknown'}, {year}\n\n"
+        "## TL;DR\n\n"
+        "(stub)\n\n"
         "## Excerpt\n\n"
         f"{excerpt}\n\n"
         "## Notes\n\n"
-        "(stub)\n\n"
+        "(your synthesis)\n\n"
         "## Source\n\n"
         f"- Raw markdown: [[{raw_target.relative_to(vault).with_suffix('').as_posix()}]]\n"
         f"- Original URL: <{url}>\n"
     )
-    write_frontmatter(inbox_target, stub_meta, stub_body)
-    info(f"wrote: {inbox_target.relative_to(vault)}")
+    write_frontmatter(note_target, note_meta, note_body)
+    info(f"wrote: {note_target.relative_to(vault)}")
 
-    print(f"inbox={inbox_target}")
+    print(f"note={note_target}")
     print(f"raw_md={raw_target}")
     return 0
 

@@ -16,13 +16,13 @@ Pipeline:
      'ar5iv-failed' and continue (PDF still downloads).
   3. Stream PDF to raw/papers/<id>.pdf (skipped via --no-pdf).
   4. Write raw/papers/<id>.md (committed: parsed text body).
-  5. Write inbox/<year>-<slug>.md (the source stub with full frontmatter).
+  5. Write notes/papers/<year>-<slug>.md (the summary note with read=false).
 
 Exit codes:
   0  ok
   2  bad arxiv id
   3  arxiv id not found
-  4  inbox stub already exists (use --force)
+  4  note already exists (use --force)
   5  network error
 """
 
@@ -38,7 +38,7 @@ from _ks_common import (  # noqa: E402
     die,
     find_vault,
     info,
-    inbox_path,
+    note_path,
     raw_path,
     refuse_if_exists,
     slugify,
@@ -143,8 +143,8 @@ def main(argv: list[str] | None = None) -> int:
     year = meta["year"]
     stub = stub_filename(year, slug)
 
-    inbox_target = inbox_path(vault, stub)
-    refuse_if_exists(inbox_target, args.force)
+    note_target = note_path(vault, "paper", stub)
+    refuse_if_exists(note_target, args.force)
 
     raw_md_target = raw_path(vault, "paper", f"{arxiv_id}.md")
     raw_pdf_target = raw_path(vault, "paper", f"{arxiv_id}.pdf")
@@ -189,23 +189,21 @@ def main(argv: list[str] | None = None) -> int:
         if pdf_written:
             info(f"wrote: {raw_pdf_target.relative_to(vault)}")
 
-    # 3. Inbox stub
-    stub_meta = {
-        "type": "source",
-        "source_kind": "paper",
-        "status": "captured",
+    # 3. Note in notes/papers/
+    note_meta = {
+        "type": "note",
+        "kind": "paper",
         "slug": slug,
         "title": meta["title"],
         "created": today(),
         "updated": today(),
+        "read": False,
         "tags": [],
-        "id": arxiv_id,
-        "indexed_in": [],
+        "year": year,
+        "authors": meta["authors"],
         "arxiv": arxiv_id,
         "doi": None,
         "url": meta["entry_id"],
-        "authors": meta["authors"],
-        "year": year,
         "venue": None,
         "raw_pdf": raw_pdf_target.relative_to(vault).as_posix(),
         "raw_md": raw_md_target.relative_to(vault).as_posix(),
@@ -215,22 +213,22 @@ def main(argv: list[str] | None = None) -> int:
         f"# {meta['title']}\n\n"
         f"> *{', '.join(meta['authors'][:3])}{'…' if len(meta['authors']) > 3 else ''}*"
         f" — arXiv {arxiv_id}, {year}\n\n"
+        "## TL;DR\n\n"
+        "(stub — fill in after reading)\n\n"
         "## Abstract\n\n"
         f"{meta['summary']}\n\n"
-        "## TL;DR\n\n"
-        "(stub)\n\n"
         "## Notes\n\n"
-        "(stub)\n\n"
+        "(your synthesis)\n\n"
         "## Source\n\n"
         f"- Raw markdown: [[raw/papers/{arxiv_id}]]\n"
         f"- PDF (gitignored): `raw/papers/{arxiv_id}.pdf`\n"
         f"- arXiv: <{meta['entry_id']}>\n"
     )
-    write_frontmatter(inbox_target, stub_meta, body)
-    info(f"wrote: {inbox_target.relative_to(vault)}")
+    write_frontmatter(note_target, note_meta, body)
+    info(f"wrote: {note_target.relative_to(vault)}")
 
     # Machine-friendly tail.
-    print(f"inbox={inbox_target}")
+    print(f"note={note_target}")
     print(f"raw_md={raw_md_target}")
     if pdf_written:
         print(f"raw_pdf={raw_pdf_target}")

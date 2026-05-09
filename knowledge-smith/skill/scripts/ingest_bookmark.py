@@ -9,8 +9,8 @@
 """Ingest a URL as a lightweight bookmark.
 
 Auto-detects:
-  - github.com/<owner>/<repo>  -> source_kind: github
-  - everything else            -> source_kind: blog
+  - github.com/<owner>/<repo>  -> notes/github/<owner>-<repo>.md
+  - everything else            -> notes/blogs/<slug>.md
 
 GitHub bookmarks are intentionally minimal: url + description only. No API
 metadata fetching, no recovery — the note + URL is the artifact.
@@ -32,7 +32,7 @@ from _ks_common import (  # noqa: E402
     die,
     find_vault,
     info,
-    inbox_path,
+    note_path,
     refuse_if_exists,
     sha1_short,
     slugify,
@@ -84,7 +84,7 @@ def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("url", help="bookmark URL")
     p.add_argument("--description", default="", help="one-sentence hook")
-    p.add_argument("--force", action="store_true", help="overwrite existing inbox stub")
+    p.add_argument("--force", action="store_true", help="overwrite existing note")
     p.add_argument("--no-title-fetch", action="store_true",
                    help="skip best-effort page <title> fetch (blogs only)")
     args = p.parse_args(argv)
@@ -113,16 +113,14 @@ def main(argv: list[str] | None = None) -> int:
             "(stub)\n"
         )
         meta = {
-            "type": "source",
-            "source_kind": "github",
-            "status": "captured",
+            "type": "note",
+            "kind": "github",
             "slug": slug,
             "title": title,
             "created": today(),
             "updated": today(),
+            "read": False,
             "tags": [],
-            "id": bookmark_id,
-            "indexed_in": [],
             "url": args.url,
             "description": args.description or None,
         }
@@ -142,28 +140,28 @@ def main(argv: list[str] | None = None) -> int:
             "(stub)\n"
         )
         meta = {
-            "type": "source",
-            "source_kind": "blog",
-            "status": "captured",
+            "type": "note",
+            "kind": "blog",
             "slug": slug,
             "title": title,
             "created": today(),
             "updated": today(),
+            "read": False,
             "tags": [],
-            "id": bookmark_id,
-            "indexed_in": [],
             "url": args.url,
             "author": None,
             "description": args.description or None,
         }
 
-    target = inbox_path(vault, stub)
+    target = note_path(vault, kind, stub)
     refuse_if_exists(target, args.force)
     write_frontmatter(target, meta, body)
     info(f"wrote: {target.relative_to(vault)}")
 
-    print(f"inbox={target}")
+    print(f"note={target}")
     print(f"kind={kind}")
+    # bookmark_id retained as identifier in the basename; not in frontmatter.
+    _ = bookmark_id
     return 0
 
 
