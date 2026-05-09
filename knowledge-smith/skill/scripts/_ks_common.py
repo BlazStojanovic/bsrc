@@ -12,6 +12,7 @@ deps (always including python-frontmatter, since this module uses it).
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 import re
 import sys
@@ -227,3 +228,91 @@ def load_tag_vocab(vault: Path) -> list[str]:
 def refuse_if_exists(path: Path, force: bool) -> None:
     if path.exists() and not force:
         die(4, f"already exists: {path} (use --force to overwrite)")
+
+
+# ---------------------------------------------------------------------------
+# Metadata JSON validation — reused by every ingest script.
+# ---------------------------------------------------------------------------
+
+# Required and optional keys per kind. The agent supplies the JSON; the
+# script validates required keys are present and types are sane.
+REQUIRED_KEYS: dict[str, tuple[str, ...]] = {
+    "paper": ("title", "authors", "year"),
+    "article": ("title", "url"),
+    "youtube": ("youtube_id", "title"),
+    "blog": ("url", "title"),
+    "github": ("url",),
+}
+
+
+def _coerce_year(v: Any) -> int | None:
+    if v is None:
+        return None
+    if isinstance(v, int):
+        return v
+    if isinstance(v, str):
+        m = re.search(r"\d{4}", v)
+        return int(m.group(0)) if m else None
+    return None
+
+
+def _coerce_str_list(v: Any) -> list[str]:
+    if v is None:
+        return []
+    if isinstance(v, str):
+        return [v.strip()] if v.strip() else []
+    if isinstance(v, list):
+        return [str(x).strip() for x in v if str(x).strip()]
+    return []
+
+
+def validate_metadata_json(payload: str, kind: str) -> dict[str, Any]:
+    """Parse JSON, check required keys per kind, normalize types.
+
+    Reads the JSON from `payload` (the raw string from --metadata-json or
+    `-` to read from stdin) and returns a normalized dict with sensible
+    defaults filled in. Hard-fails with `die(2, ...)` on invalid input.
+    """
+    if payload == "-":
+        payload = sys.stdin.read()
+    try:
+        meta = json.loads(payload)
+    except json.JSONDecodeError as exc:
+        die(2, f"invalid JSON: {exc}")
+    if not isinstance(meta, dict):
+        die(2, f"metadata JSON must be an object, got {type(meta).__name__}")
+
+    required = REQUIRED_KEYS.get(kind)
+    if required is None:
+        die(2, f"unknown kind={kind!r}; must be one of {tuple(REQUIRED_KEYS)}")
+    missing = [k for k in required if not meta.get(k)]
+    if missing:
+        die(2, f"metadata JSON missing required keys for kind={kind}: {missing}")
+
+    # Per-kind normalization.
+    if kind == "paper":
+        meta["year"] = _coerce_year(meta.get("year"))
+        meta["authors"] = _coerce_str_list(meta.get("authors"))
+        meta.setdefault("arxiv", None)
+        meta.setdefault("doi", None)
+        meta.setdefault("venue", None)
+        meta.setdefault("abstract", "")
+        meta.setdefault("url", None)
+    elif kind == "article":
+        meta["year"] = _coerce_year(meta.get("year") or meta.get("published"))
+        meta.setdefault("author", None)
+        meta.setdefault("publication", None)
+        meta.setdefault("tldr", "")
+    elif kind == "youtube":
+        meta["year"] = _coerce_year(meta.get("year") or meta.get("upload_date"))
+        meta.setdefault("channel", None)
+        meta.setdefault("channel_id", None)
+        meta.setdefault("duration_seconds", 0)
+        meta.setdefault("upload_date", None)
+    elif kind == "blog":
+        meta.setdefault("author", None)
+        meta.setdefault("description", None)
+    elif kind == "github":
+        meta.setdefault("description", None)
+
+    return meta
