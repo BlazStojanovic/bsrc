@@ -1,14 +1,13 @@
 ---
-type: source
-source_kind: article
-status: captured
+type: note
+kind: article
 slug: <kebab-case>
 title: <article title>
 created: YYYY-MM-DD
 updated: YYYY-MM-DD
+read: false
 tags: []
-id: <sha1(url)[:10]>
-indexed_in: []
+year: YYYY
 url: <article url>
 author: <author or null>
 publication: <publication or null>
@@ -21,13 +20,17 @@ clipper: obsidian-web-clipper
 
 > *<author>* — <publication>, <year>
 
+## TL;DR
+
+(stub)
+
 ## Excerpt
 
 <first ~200 chars>
 
 ## Notes
 
-(stub)
+(your synthesis)
 
 ## Source
 

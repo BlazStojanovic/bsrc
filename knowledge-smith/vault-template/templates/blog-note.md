@@ -1,14 +1,12 @@
 ---
-type: source
-source_kind: blog
-status: captured
+type: note
+kind: blog
 slug: <kebab-case>
 title: <blog name>
 created: YYYY-MM-DD
 updated: YYYY-MM-DD
+read: false
 tags: []
-id: <sha1(url)[:10]>
-indexed_in: []
 url: <blog url>
 author: <author or null>
 description: <one sentence about what the blog covers>

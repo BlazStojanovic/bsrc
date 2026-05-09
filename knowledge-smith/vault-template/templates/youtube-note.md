@@ -1,21 +1,20 @@
 ---
-type: source
-source_kind: youtube
-status: captured
+type: note
+kind: youtube
 slug: <kebab-case>
 title: <video title>
 created: YYYY-MM-DD
 updated: YYYY-MM-DD
+read: false
 tags: []
-id: <youtube_id>
-indexed_in: []
+year: YYYY
 youtube_id: <id>
 url: https://youtu.be/<id>
 channel: <channel name>
 channel_id: UC...
 duration_seconds: 0
 upload_date: YYYY-MM-DD
-raw_audio: raw/youtube/<id>.audio.m4a
+raw_audio: null
 raw_transcript: raw/youtube/<id>.transcript.md
 raw_metadata: raw/youtube/<id>.metadata.json
 transcript_source: yt-auto
@@ -25,7 +24,7 @@ transcript_source: yt-auto
 
 > *<channel>* — uploaded <upload_date> — <duration_seconds>s
 
-## Summary
+## TL;DR
 
 (stub)
 

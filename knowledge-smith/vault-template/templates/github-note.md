@@ -1,14 +1,12 @@
 ---
-type: source
-source_kind: github
-status: captured
+type: note
+kind: github
 slug: <repo-name>
 title: <owner>/<repo>
 created: YYYY-MM-DD
 updated: YYYY-MM-DD
+read: false
 tags: []
-id: <owner>-<repo>
-indexed_in: []
 url: https://github.com/<owner>/<repo>
 description: <one sentence>
 ---

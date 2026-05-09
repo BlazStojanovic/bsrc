@@ -1,19 +1,17 @@
 ---
-type: source
-source_kind: paper
-status: captured
+type: note
+kind: paper
 slug: <kebab-case>
 title: <full title>
 created: YYYY-MM-DD
 updated: YYYY-MM-DD
+read: false
 tags: []
-id: <arxiv id or sha1[:10]>
-indexed_in: []
+year: YYYY
+authors: ["Last F.", "Last F."]
 arxiv: <id or null>
 doi: null
-url: <abs url>
-authors: ["Last F.", "Last F."]
-year: YYYY
+url: <abs url or null>
 venue: null
 raw_pdf: raw/papers/<id>.pdf
 raw_md: raw/papers/<id>.md
@@ -24,17 +22,17 @@ parser: ar5iv
 
 > *<authors>* — <venue>, <year>
 
+## TL;DR
+
+(stub — fill in after reading; this is the field your future self will skim)
+
 ## Abstract
 
 <from arxiv API or paper>
 
-## TL;DR
-
-(stub)
-
 ## Notes
 
-(stub — flesh out before promoting from inbox to sources/papers/)
+(your synthesis — anything beyond the abstract belongs here)
 
 ## Source
 
