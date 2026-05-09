@@ -51,7 +51,7 @@ knowledge-smith/
 │       ├── ingest_bookmark.py # github + blog (lightweight)
 │       ├── recover_raw.py     # refetch gitignored binaries
 │       ├── ks_reading_list.py # regen reading-list/<kind>.md
-│       ├── ks_tag.py          # LLM-suggest tags via Anthropic API
+│       ├── ks_tag.py          # `list` / `apply` plumbing for subagent-driven tagging
 │       └── ks_doctor.py       # health check + --init <path>
 └── vault-template/            # copied (not symlinked) by ks_doctor --init
     ├── CLAUDE.md
@@ -68,7 +68,9 @@ knowledge-smith/
 
 - `uv` (PEP 723 script runner). `brew install uv`.
 - macOS (matches the rest of bsrc).
-- For `ks_tag.py`: `ANTHROPIC_API_KEY` in env.
+- For `ks_tag.py`: an LLM-capable agent harness (Claude Code, Codex). The
+  script handles I/O; the harness dispatches sonnet subagents to actually
+  produce the tags. No external API key required.
 
 Each Python script declares its own deps in a PEP 723 header — uv resolves
 and caches them on first invocation. No venv to manage.
@@ -89,9 +91,12 @@ uv run ~/.claude/skills/knowledge-smith/scripts/ingest_arxiv.py 1706.03762
 uv run ~/.claude/skills/knowledge-smith/scripts/ingest_bookmark.py https://github.com/karpathy/nanoGPT
 uv run ~/.claude/skills/knowledge-smith/scripts/ingest_youtube.py https://youtu.be/dQw4w9WgXcQ
 
-# Refresh the reading list and tags
+# Refresh the reading list
 uv run ~/.claude/skills/knowledge-smith/scripts/ks_reading_list.py --all
-ANTHROPIC_API_KEY=sk-ant-... uv run ~/.claude/skills/knowledge-smith/scripts/ks_tag.py --all
+
+# Tag — say "tag my paper notes" to your agent (Claude Code / Codex);
+# the skill orchestrates sonnet subagents, applies tags, and refreshes
+# the reading list. No API key required.
 
 # Inspect
 uv run ~/.claude/skills/knowledge-smith/scripts/ks_doctor.py

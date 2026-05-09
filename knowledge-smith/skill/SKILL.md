@@ -66,19 +66,74 @@ Generates `reading-list/<kind>.md` listing every `read: false` note for that
 kind. Dated kinds (paper/article/youtube) are grouped by year, descending;
 blog/github are flat lists.
 
-## Tagging
-```
-uv run ~/.claude/skills/knowledge-smith/scripts/ks_tag.py --kind paper
-uv run ~/.claude/skills/knowledge-smith/scripts/ks_tag.py --all --model haiku
-uv run ~/.claude/skills/knowledge-smith/scripts/ks_tag.py --kind paper --force
-```
-Calls Claude (default `claude-sonnet-4-6`, override `--model`) with a cached
-controlled-vocabulary system prompt. Writes 2–5 lowercase kebab-case tags
-into the note's frontmatter. Idempotent — only touches notes whose `tags`
-list is empty unless `--force`. Requires `ANTHROPIC_API_KEY` in the env.
+## Tagging — agent-driven (subagents return tags)
 
-The vocabulary lives in code (`_ks_common.DEFAULT_TAG_VOCAB`); a vault may
-override by writing its own `<vault>/.ks-tag-vocab` (one tag per line).
+`ks_tag.py` does the I/O only. The LLM call is **your** responsibility as
+the orchestrating agent: spawn sonnet subagents in parallel, collect their
+JSON output, and write it back via the script. No external API key needed.
+
+Step-by-step (do this when the user asks to tag, retag, or "make notes
+searchable"):
+
+1. **List untagged notes:**
+   ```
+   uv run ~/.claude/skills/knowledge-smith/scripts/ks_tag.py list --kind paper > /tmp/ks-tag-plan.jsonl
+   ```
+   Output begins with a `# vocab: t1, t2, ...` comment header (the
+   controlled vocabulary; vault may override via `<vault>/.ks-tag-vocab`),
+   followed by one JSON object per untagged note:
+   `{"file": "/abs/path.md", "kind": "paper", "slug": "...", "title": "...", "year": YYYY, "abstract": "..."}`
+
+2. **Read the plan**, parse the vocab from the header, parse the JSONL.
+
+3. **Batch into groups of 15–20 papers.**
+
+4. **Dispatch parallel subagents** — one Agent tool call per batch, all in a
+   single message so they run concurrently. Use:
+   - `subagent_type: "general-purpose"`
+   - `model: "sonnet"`
+   - prompt template:
+     ```
+     You are tagging research sources for a knowledge-smith vault.
+
+     CONTROLLED VOCABULARY (prefer these — only invent free-form tags when
+     none of these fit):
+     <comma-separated vocab from header>
+
+     For each entry below, output a single JSON line of the form:
+     {"file": "<absolute file path>", "tags": ["tag-one", "tag-two", ...]}
+
+     Rules:
+     - 2–5 tags per entry
+     - lowercase, kebab-case (a-z 0-9 -)
+     - prefer specific over generic ("transformer" over "ml")
+     - no commentary, no Markdown fences — JSON lines only
+
+     ENTRIES:
+     1. file: /path/to/note1.md
+        title: <title>
+        year: <year>
+        abstract: <abstract>
+     2. file: /path/to/note2.md
+        ...
+     ```
+   - Ask the subagent to "respond ONLY with N JSON lines, one per entry."
+
+5. **Parse** each subagent's JSON-lines response.
+
+6. **Apply tags** — one `apply` call per note:
+   ```
+   uv run ~/.claude/skills/knowledge-smith/scripts/ks_tag.py apply /abs/path.md tag1 tag2 tag3
+   ```
+   You can run these in parallel via Bash.
+
+7. **Refresh the reading list** afterwards:
+   ```
+   uv run ~/.claude/skills/knowledge-smith/scripts/ks_reading_list.py --all
+   ```
+
+For a quick sanity check before tagging in bulk, pass `--limit 3` to `list`
+and tag just three papers first.
 
 ## Recovery
 After a fresh clone, gitignored binaries (PDFs, audio) are missing. Run:
@@ -114,5 +169,5 @@ files. Common-core fields (`type`, `kind`, `slug`, `title`, `created`,
   layout/OCR models. Subsequent runs are cached.
 - `ingest_youtube.py` uses YouTube auto-subs in slice 1; full Whisper
   transcription is a slice-2 follow-up.
-- `ks_tag.py` requires `ANTHROPIC_API_KEY` and incurs API cost (~sub-$1
-  per ~150 papers on Sonnet 4.6 with prompt caching).
+- Tagging happens via subagents within Claude Code / Codex (the
+  orchestrating agent dispatches them) — no external API key required.
