@@ -188,12 +188,13 @@ def main(argv: list[str] | None = None) -> int:
     authors_short = ", ".join(meta["authors"][:3])
     authors_suffix = "…" if len(meta["authors"]) > 3 else ""
     stem = note_basename.removesuffix(".md")
+    pdf_link = f"[[raw/papers/pdf/{stem}.pdf]]"
     if args.no_pdf:
-        pdf_line = f"- PDF (skipped): `raw/papers/pdf/{stem}.pdf`"
+        pdf_line = f"- PDF (skipped): {pdf_link}"
     elif pdf_written:
-        pdf_line = f"- PDF: `raw/papers/pdf/{stem}.pdf`"
+        pdf_line = f"- PDF: {pdf_link}"
     else:
-        pdf_line = f"- PDF (download failed): `raw/papers/pdf/{stem}.pdf`"
+        pdf_line = f"- PDF (download failed): {pdf_link}"
     body = (
         f"# {meta['title']}\n\n"
         f"> *{authors_short}{authors_suffix}* — arXiv {arxiv_id}, {year}\n\n"

@@ -199,6 +199,11 @@ Recovery uses these identifiers when refetching binaries:
 10. **Reading-list pages are generated.** Don't hand-edit `reading-list/*.md`
     — `ks_reading_list.py` will overwrite. If you need a curated reading map,
     keep it elsewhere (your writing vault).
+11. **Paper notes always carry a PDF wikilink.** Every `notes/papers/<stem>.md`
+    has a Source section line of the form
+    `- PDF: [[raw/papers/pdf/<stem>.pdf]]`, even when the PDF isn't on disk
+    (book stubs, `--no-pdf` ingests, failed downloads). The unresolved link
+    is intentional — the user can drop a PDF at the canonical path later.
 
 ## Scripts
 

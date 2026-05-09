@@ -210,7 +210,7 @@ def main(argv: list[str] | None = None) -> int:
         "## Notes\n\n(your synthesis)\n\n"
         "## Source\n\n"
         f"- Raw markdown: [[raw/papers/md/{stem}]]\n"
-        f"- PDF: `raw/papers/pdf/{stem}.pdf`\n"
+        f"- PDF: [[raw/papers/pdf/{stem}.pdf]]\n"
     )
     if meta.get("url"):
         body += f"- Original URL: <{meta['url']}>\n"

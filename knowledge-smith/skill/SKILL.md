@@ -310,6 +310,18 @@ Authoritative spec lives in `<vault>/CLAUDE.md`. Read before generating
 files. Common-core fields (`type`, `kind`, `slug`, `title`, `created`,
 `updated`, `read`, `tags`) plus per-`kind` extensions.
 
+## Conventions
+
+- **Paper notes always carry a PDF wikilink.** Every `notes/papers/<stem>.md`
+  has a Source section line of the form `- PDF: [[raw/papers/pdf/<stem>.pdf]]`,
+  even when the PDF isn't on disk (book stubs, ingest with `--no-pdf`,
+  failed downloads). The link is unresolved-but-present so the user
+  can drop a PDF at the canonical path later. Do not strip these
+  unresolved links.
+- **`raw/papers/` is split.** `.md` text lives at `raw/papers/md/<stem>.md`
+  (committed); `.pdf` binaries at `raw/papers/pdf/<stem>.pdf` (gitignored).
+  The `<stem>` mirrors the note basename.
+
 ## Don'ts
 - **Do not invent metadata.** If a fetch step fails (WebFetch returns
   garbage, yt-dlp errors, PDF unreadable), surface the failure to the
