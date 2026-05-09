@@ -3,20 +3,36 @@
 # requires-python = ">=3.11"
 # dependencies = ["python-frontmatter>=1.1"]
 # ///
-"""Ingest a Web Clipper markdown file into the active vault.
+"""Write an article note + raw clipper file into the active vault.
 
-Reads frontmatter the clipper produced (url, title, author, publication,
-published), normalizes it, copies the file under raw/articles/<year>-<slug>.md
-preserving the clipper's original keys under a `clipper:` block, and writes
-the article note to notes/articles/<year>-<slug>.md with read=false.
+The agent reads the Web Clipper file directly and extracts metadata +
+TL;DR, then passes the metadata via --metadata-json. This script copies
+the clipper file into raw/articles/ (preserving the clipper's frontmatter
+under a `clipper:` block) and writes the summary note.
+
+Required JSON keys: title, url.
+Optional: author, publication, year, slug, tldr, retrieved.
+
+The agent supplies a real `tldr` field — 1-2 sentences distilled from
+reading the body — replacing the old regex-truncated 200-char excerpt.
+
+Examples:
+  uv run ingest_article.py \\
+    --metadata-json '{
+      "title": "...",
+      "url": "...",
+      "author": "...",
+      "publication": "...",
+      "year": 2024,
+      "tldr": "Author argues X by ..."
+    }' \\
+    --clipper-path /tmp/clipper.md
 """
 
 from __future__ import annotations
 
 import argparse
-import re
 import sys
-from datetime import date
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -32,86 +48,64 @@ from _ks_common import (  # noqa: E402
     slugify,
     stub_filename,
     today,
+    validate_metadata_json,
     write_frontmatter,
 )
 
 
-def _parse_year(value) -> int | None:
-    if value is None:
-        return None
-    if isinstance(value, date):
-        return value.year
-    s = str(value).strip()
-    m = re.search(r"(\d{4})", s)
-    return int(m.group(1)) if m else None
-
-
-def _excerpt(body: str, n: int = 200) -> str:
-    text = re.sub(r"\s+", " ", body).strip()
-    if len(text) <= n:
-        return text
-    return text[:n].rsplit(" ", 1)[0] + "…"
-
-
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument("path", help="Web Clipper markdown file")
+    p.add_argument("--metadata-json", required=True,
+                   help="JSON metadata, or '-' to read from stdin")
+    p.add_argument("--clipper-path", required=True,
+                   help="path to the Web Clipper markdown file")
     p.add_argument("--force", action="store_true", help="overwrite existing files")
     args = p.parse_args(argv)
 
-    src = Path(args.path).expanduser().resolve()
+    src = Path(args.clipper_path).expanduser().resolve()
     if not src.is_file():
-        die(2, f"not a file: {src}")
+        die(2, f"--clipper-path is not a file: {src}")
 
+    meta = validate_metadata_json(args.metadata_json, "article")
     try:
         clipper_meta, body = read_frontmatter(src)
     except Exception as exc:
-        die(2, f"could not parse {src}: {exc}")
+        die(2, f"could not parse clipper file {src}: {exc}")
 
-    url = clipper_meta.get("url") or clipper_meta.get("source")
-    if not url:
-        die(2, f"clipper file missing 'url' in frontmatter: {src}")
-    title = clipper_meta.get("title") or src.stem
-    author = clipper_meta.get("author") or clipper_meta.get("byline")
-    publication = clipper_meta.get("publication") or clipper_meta.get("site")
-    published = clipper_meta.get("published") or clipper_meta.get("date")
-    year = _parse_year(published) or _parse_year(today())
+    vault = find_vault().path
+    info(f"vault: {vault}")
+    info(f"clipper: {src}")
 
-    slug = slugify(title)
+    title = meta["title"]
+    url = meta["url"]
+    slug = meta.get("slug") or slugify(title)
+    year = meta.get("year")
     article_id = sha1_short(url)
     stub = stub_filename(year, slug)
 
-    vault = find_vault().path
     raw_target = raw_path(vault, "article", stub)
     note_target = note_path(vault, "article", stub)
-
     refuse_if_exists(raw_target, args.force)
     refuse_if_exists(note_target, args.force)
 
-    info(f"vault: {vault}")
-    info(f"clipper: {src}")
     info(f"url: {url}")
     info(f"slug: {slug}")
 
-    # 1. Move the clipper file to raw/articles/, preserving original keys.
     raw_meta = {
         "type": "raw-article",
         "url": url,
         "title": title,
-        "author": author,
-        "publication": publication,
-        "published": str(published) if published else None,
+        "author": meta.get("author"),
+        "publication": meta.get("publication"),
+        "published": meta.get("published") or (str(year) if year else None),
         "retrieved": today(),
         "id": article_id,
         "clipper": dict(clipper_meta),
     }
     raw_target.parent.mkdir(parents=True, exist_ok=True)
     write_frontmatter(raw_target, raw_meta, body)
-    # Original clipper file: leave it in place. The user may have other
-    # consumers; we don't move/delete user files.
     info(f"wrote: {raw_target.relative_to(vault)}")
 
-    # 2. Article note
     note_meta = {
         "type": "note",
         "kind": "article",
@@ -123,22 +117,19 @@ def main(argv: list[str] | None = None) -> int:
         "tags": [],
         "year": year,
         "url": url,
-        "author": author,
-        "publication": publication,
+        "author": meta.get("author"),
+        "publication": meta.get("publication"),
         "retrieved": today(),
         "raw_md": raw_target.relative_to(vault).as_posix(),
         "clipper": "obsidian-web-clipper",
     }
-    excerpt = _excerpt(body)
+    tldr = meta.get("tldr") or "(stub)"
     note_body = (
         f"# {title}\n\n"
-        f"> *{author or 'unknown'}* — {publication or 'unknown'}, {year}\n\n"
-        "## TL;DR\n\n"
-        "(stub)\n\n"
-        "## Excerpt\n\n"
-        f"{excerpt}\n\n"
-        "## Notes\n\n"
-        "(your synthesis)\n\n"
+        f"> *{meta.get('author') or 'unknown'}* — "
+        f"{meta.get('publication') or 'unknown'}, {year or '?'}\n\n"
+        f"## TL;DR\n\n{tldr}\n\n"
+        "## Notes\n\n(your synthesis)\n\n"
         "## Source\n\n"
         f"- Raw markdown: [[{raw_target.relative_to(vault).with_suffix('').as_posix()}]]\n"
         f"- Original URL: <{url}>\n"
