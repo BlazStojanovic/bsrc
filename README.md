@@ -15,6 +15,8 @@ Personal macOS dotfiles and CLI/editor setup.
 - `peonping`
 - `codex`
 - `claude`
+- `knowledge-smith`
+- `anki`
 - `feynman`
 
 Explicitly excluded from this repo:
@@ -244,6 +246,27 @@ Neovim is now managed directly from
 
 Neovim-specific documentation lives in
 [nvim/README.md](/Users/blazstojanovic/Developer/bsrc/nvim/README.md).
+
+## Anki
+
+The `anki` component wires the user's Anki spaced-repetition workflow
+into Claude Code and Codex via the [Anki MCP Server Addon][mcp-addon]
+(addon code `124672614`, listening on `http://127.0.0.1:3141/`).
+
+The agent authors cards directly via the MCP. Periodically, a small
+zero-dependency script (`ank_dump.py`) snapshots the collection to
+per-deck markdown in a separate GitHub repo for version control and
+human-readable diffs. AnkiWeb syncs cards + review state to phone /
+web / other Macs independently; bsrc never touches AnkiWeb credentials.
+
+See [anki/README.md](/Users/blazstojanovic/Developer/bsrc/anki/README.md)
+for prerequisites, the one-time per-device addon install, and the daily
+workflow.
+
+The Anki MCP entry is gated behind `--with-mcps` (same convention as
+notion/coda/linear/grafana).
+
+[mcp-addon]: https://github.com/ankimcp/anki-mcp-server-addon
 
 ## Feynman
 

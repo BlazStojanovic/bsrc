@@ -135,6 +135,17 @@ searchable"):
 For a quick sanity check before tagging in bulk, pass `--limit 3` to `list`
 and tag just three papers first.
 
+## Cards from a source (bridge to the `anki` skill)
+After the user has read a source, they may want spaced-repetition
+cards on its key concepts. Hand off to the `anki` skill: the source
+note path is `<vault>/notes/<kind>/<slug>.md`, and the slug becomes
+the `ks:<slug>` provenance tag on each card. For papers, also tag
+`paper:<arxiv-id>`. The `anki` skill's `CARD_DESIGN.md` owns the
+deck-selection convention, atomicity rule, math/figure handling, and
+the batch-and-review drafting flow — read it before drafting. After
+cards land, optionally flip the source's `read: true` in frontmatter
+since cards are evidence the user actually read it.
+
 ## Recovery
 After a fresh clone, gitignored binaries (PDFs, audio) are missing. Run:
 ```

@@ -4,6 +4,10 @@
 # - Coda: https://help.coda.io/hc/en-us/articles/44722661982989-Connect-to-the-Coda-MCP
 # - Linear: https://linear.app/docs/mcp
 # - Grafana (Codex): https://grafana.com/docs/grafana/latest/developer-resources/mcp/clients/codex/
+# - Anki MCP Server Addon: https://github.com/ankimcp/anki-mcp-server-addon
+
+[mcp_servers.anki]
+url = "http://127.0.0.1:3141/"
 
 [mcp_servers.notion]
 url = "https://mcp.notion.com/mcp"

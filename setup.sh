@@ -52,6 +52,7 @@ components=(
   codex
   claude
   knowledge-smith
+  anki
   feynman
 )
 
