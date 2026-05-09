@@ -18,6 +18,7 @@ Personal macOS dotfiles and CLI/editor setup.
 - `knowledge-smith`
 - `anki`
 - `feynman`
+- `obsidian-skills`
 
 Explicitly excluded from this repo:
 
@@ -282,6 +283,17 @@ discovers skills at `~/.claude/skills/<skill-name>/SKILL.md`:
 ```bash
 curl -fsSL https://feynman.is/install-skills | bash
 ```
+
+## Obsidian Skills
+
+The `obsidian-skills` component clones
+[kepano/obsidian-skills](https://github.com/kepano/obsidian-skills)
+into `~/.cache/bsrc/skills/obsidian-skills` and symlinks each of the
+five bundled skills (`obsidian-markdown`, `obsidian-bases`,
+`json-canvas`, `obsidian-cli`, `defuddle`) into both `~/.claude/skills/`
+and `~/.codex/skills/`. Re-running fast-forwards the cache. Pin to a
+specific upstream commit via `OBSIDIAN_SKILLS_REF=<sha>`. See
+[obsidian-skills/README.md](/Users/blazstojanovic/Developer/bsrc/obsidian-skills/README.md).
 
 ## Current Direction
 

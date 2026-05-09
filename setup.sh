@@ -54,6 +54,7 @@ components=(
   knowledge-smith
   anki
   feynman
+  obsidian-skills
 )
 
 for component in "${components[@]}"; do
