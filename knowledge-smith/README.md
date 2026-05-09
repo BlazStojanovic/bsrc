@@ -1,15 +1,16 @@
 # knowledge-smith
 
-A bsrc component that installs a personal **research-aggregation and
-indexing skill** for Claude Code and Codex, plus the runner scripts that
-feed it.
+A bsrc component that installs a personal **research-indexing skill** for
+Claude Code and Codex, plus the runner scripts that feed it.
 
 ## What it does
 
 `knowledge-smith` lets you capture sources from many channels (papers,
 articles, YouTube videos, blog pointers, GitHub repos) into a markdown-only
-Obsidian-frontended vault and turn them into concept-level synthesis notes
-that compound over time.
+Obsidian-frontended vault. Each source becomes **one note** in
+`notes/<kind>/`, marked `read: false` until you process it. A generated
+`reading-list/<kind>.md` page indexes everything still unread. Tags come
+from an LLM pass over title + abstract, drawn from a controlled vocabulary.
 
 ```
 [arxiv | PDF | Web Clipper | YouTube | github | blog]
@@ -19,19 +20,20 @@ that compound over time.
                   │
                   ▼
 <some-vault>/
-   inbox/             fresh source captures, status: captured
-   sources/<kind>/    registered sources
-   notes/             concept-oriented synthesis (flat, cross-source)
-   topics/            user-curated reading maps
-   raw/               parsed md committed; binaries gitignored
-   CLAUDE.md          schema contract
-   .knowledge-smith   marker
+   notes/<kind>/<slug>.md       one note per source, read:false
+   reading-list/<kind>.md       generated index of unread notes
+   raw/                         parsed md committed; binaries gitignored
+   CLAUDE.md                    schema contract
+   .knowledge-smith             marker
 ```
 
 Tooling lives in this repo (`bsrc/knowledge-smith/`). Vaults live wherever
 the user puts them — multi-vault is first-class. Discovery is via the
 `.knowledge-smith` marker file or the `KNOWLEDGE_SMITH_VAULT` env var; there
 is **no default vault path**.
+
+This vault is the **indexing tier**. Cross-source synthesis, distilled prose,
+and writing work belong elsewhere (e.g. a separate Obsidian vault).
 
 ## Layout
 
@@ -47,18 +49,18 @@ knowledge-smith/
 │       ├── ingest_article.py  # Web Clipper input
 │       ├── ingest_youtube.py  # yt-dlp auto-subs (Whisper deferred)
 │       ├── ingest_bookmark.py # github + blog (lightweight)
-│       ├── recover_raw.py
+│       ├── recover_raw.py     # refetch gitignored binaries
+│       ├── ks_reading_list.py # regen reading-list/<kind>.md
+│       ├── ks_tag.py          # LLM-suggest tags via Anthropic API
 │       └── ks_doctor.py       # health check + --init <path>
 └── vault-template/            # copied (not symlinked) by ks_doctor --init
     ├── CLAUDE.md
     ├── .gitignore
     ├── .knowledge-smith       # marker
     ├── README.md
-    ├── templates/             # 7 note templates
-    ├── inbox/.gitkeep
-    ├── sources/{papers,articles,youtube,blogs,github}/.gitkeep
-    ├── notes/.gitkeep
-    ├── topics/.gitkeep
+    ├── templates/             # 5 *-note.md + 1 reading-list.md
+    ├── notes/{papers,articles,youtube,blogs,github}/.gitkeep
+    ├── reading-list/.gitkeep
     └── raw/{papers,articles,youtube}/.gitkeep
 ```
 
@@ -66,6 +68,7 @@ knowledge-smith/
 
 - `uv` (PEP 723 script runner). `brew install uv`.
 - macOS (matches the rest of bsrc).
+- For `ks_tag.py`: `ANTHROPIC_API_KEY` in env.
 
 Each Python script declares its own deps in a PEP 723 header — uv resolves
 and caches them on first invocation. No venv to manage.
@@ -81,13 +84,14 @@ uv run ~/.claude/skills/knowledge-smith/scripts/ks_doctor.py --init ~/Desktop/re
 cd ~/Desktop/research-vault
 git init && git add -A && git commit -m "init knowledge-smith vault"
 
-# Capture sources
+# Capture sources (each lands directly in notes/<kind>/, read:false)
 uv run ~/.claude/skills/knowledge-smith/scripts/ingest_arxiv.py 1706.03762
 uv run ~/.claude/skills/knowledge-smith/scripts/ingest_bookmark.py https://github.com/karpathy/nanoGPT
 uv run ~/.claude/skills/knowledge-smith/scripts/ingest_youtube.py https://youtu.be/dQw4w9WgXcQ
 
-# Triage from inbox into sources/<kind>/, then write concept notes by hand
-# (or with the agent) in notes/.
+# Refresh the reading list and tags
+uv run ~/.claude/skills/knowledge-smith/scripts/ks_reading_list.py --all
+ANTHROPIC_API_KEY=sk-ant-... uv run ~/.claude/skills/knowledge-smith/scripts/ks_tag.py --all
 
 # Inspect
 uv run ~/.claude/skills/knowledge-smith/scripts/ks_doctor.py
@@ -99,11 +103,12 @@ uv run ~/.claude/skills/knowledge-smith/scripts/recover_raw.py
 The skill is auto-discovered by Claude Code and Codex when you say things
 like "save this paper" or "ingest this URL".
 
-## Slice 2 deferrals
+## Slice-3 deferrals
 
 - Whisper-on-promote for YouTube transcripts (slice 1 ships auto-subs only).
 - Audio download flag for `ingest_youtube.py`.
-- Concept-extraction skill that proposes `notes/` from a single source.
-- Weekly digest skill, topic-taxonomy lint pass.
+- Auto-regenerate reading-list as a post-ingest hook.
+- Tag-grouped reading-list view (`reading-list/by-tag/<tag>.md`).
+- `--read` TUI on `ks_doctor` for batch flipping read/unread.
 - Watch jobs (cron arXiv RSS, GitHub stars sync).
 - Search infrastructure (qmd / SQLite FTS) when a vault outgrows the index.
