@@ -33,7 +33,7 @@ from _ks_common import (  # noqa: E402
     warn,
 )
 
-KINDS = ("paper", "article", "youtube", "blog", "github")
+KINDS = ("paper", "article", "youtube", "blog", "github", "course")
 RAW_KINDS_WITH_DIR = {"paper": "papers", "article": "articles", "youtube": "youtube"}
 
 

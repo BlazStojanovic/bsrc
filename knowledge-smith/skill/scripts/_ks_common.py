@@ -28,13 +28,14 @@ import frontmatter  # type: ignore[import-not-found]
 VAULT_MARKER = ".knowledge-smith"
 ENV_VAR = "KNOWLEDGE_SMITH_VAULT"
 
-Kind = Literal["paper", "article", "youtube", "blog", "github"]
+Kind = Literal["paper", "article", "youtube", "blog", "github", "course"]
 KIND_TO_PLURAL: dict[str, str] = {
     "paper": "papers",
     "article": "articles",
     "youtube": "youtube",
     "blog": "blogs",
     "github": "github",
+    "course": "courses",
 }
 # Subset of kinds that have associated raw assets on disk.
 RAW_DIRS: dict[str, str] = {
@@ -254,6 +255,7 @@ REQUIRED_KEYS: dict[str, tuple[str, ...]] = {
     "youtube": ("youtube_id", "title"),
     "blog": ("url", "title"),
     "github": ("url",),
+    "course": ("url", "title"),
 }
 
 
@@ -325,6 +327,11 @@ def validate_metadata_json(payload: str, kind: str) -> dict[str, Any]:
         meta.setdefault("author", None)
         meta.setdefault("description", None)
     elif kind == "github":
+        meta.setdefault("description", None)
+    elif kind == "course":
+        meta["year"] = _coerce_year(meta.get("year"))
+        meta.setdefault("instructor", None)
+        meta.setdefault("institution", None)
         meta.setdefault("description", None)
 
     return meta

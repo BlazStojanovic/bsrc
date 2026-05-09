@@ -54,6 +54,7 @@ The path for `<script>` below is `~/.claude/skills/knowledge-smith/scripts/<scri
 | Web Clipper `.md` path | `ingest_article.py` | `notes/articles/<year>-<slug>.md` |
 | `youtube.com/watch` or `youtu.be` URL | `ingest_youtube.py` | `notes/youtube/<year>-<slug>.md` |
 | `github.com/owner/repo` URL | `ingest_bookmark.py --kind github` | `notes/github/<owner>-<repo>.md` |
+| Course / lecture-series homepage | `ingest_bookmark.py --kind course` | `notes/courses/<slug>.md` |
 | Any other web URL | `ingest_bookmark.py --kind blog` | `notes/blogs/<slug>.md` |
 
 ## How to ingest — arXiv
@@ -178,12 +179,16 @@ For `youtube.com/watch?v=<id>` or `youtu.be/<id>`:
 The user owns the audio file in `raw/youtube/<id>.audio.mp3` if they
 want it; that's gitignored.
 
-## How to ingest — bookmarks (blog or github)
+## How to ingest — bookmarks (blog, github, course)
 
 For any URL:
 
-1. **Detect kind** — `github.com/<owner>/<repo>` → kind=github; else
-   kind=blog.
+1. **Detect kind** —
+   - `github.com/<owner>/<repo>` → `kind=github`
+   - course / lecture-series homepage (Stanford/MIT/Coursera/etc.,
+     `cs<NNN>`-style URLs, "course"/"lectures" in the title) →
+     `kind=course`
+   - else → `kind=blog`
 
 2. **For github**: parse owner+repo from the URL. The user's
    `--description` (if given) is the hook. No fetching.
@@ -210,6 +215,14 @@ For any URL:
    uv run ~/.claude/skills/knowledge-smith/scripts/ingest_bookmark.py \
      --kind blog \
      --metadata-json '{"url":"...","title":"...","author":"...",
+                       "description":"..."}'
+
+   # course
+   uv run ~/.claude/skills/knowledge-smith/scripts/ingest_bookmark.py \
+     --kind course \
+     --metadata-json '{"url":"...","title":"CS336: Language Models from Scratch",
+                       "instructor":"Percy Liang & Tatsunori Hashimoto",
+                       "institution":"Stanford","year":2024,
                        "description":"..."}'
    ```
 

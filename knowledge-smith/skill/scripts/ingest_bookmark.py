@@ -3,11 +3,11 @@
 # requires-python = ">=3.11"
 # dependencies = ["python-frontmatter>=1.1"]
 # ///
-"""Write a blog or github bookmark note into the active vault.
+"""Write a blog, github, or course bookmark note into the active vault.
 
-The agent extracts metadata (title, author, description) by
-WebFetch'ing the URL itself, then passes it via --metadata-json. This
-script just writes the note. No fetching, no regex.
+The agent extracts metadata (title, author/instructor, description)
+by WebFetch'ing the URL itself, then passes it via --metadata-json.
+This script just writes the note. No fetching, no regex.
 
 For GitHub URLs the agent should also pass `owner` and `repo` (parsed
 from the URL) so the basename is `<owner>-<repo>.md`.
@@ -15,6 +15,7 @@ from the URL) so the basename is `<owner>-<repo>.md`.
 Required JSON keys:
   blog:   title, url
   github: url   (title and owner/repo recommended)
+  course: title, url   (instructor/institution/year recommended)
 
 Examples:
   uv run ingest_bookmark.py --kind blog --metadata-json '{
@@ -30,6 +31,15 @@ Examples:
     "repo": "whisper",
     "title": "openai/whisper",
     "description": "Robust speech recognition"
+  }'
+
+  uv run ingest_bookmark.py --kind course --metadata-json '{
+    "url": "https://stanford-cs336.github.io/spring2024/",
+    "title": "CS336: Language Models from Scratch",
+    "instructor": "Percy Liang & Tatsunori Hashimoto",
+    "institution": "Stanford",
+    "year": 2024,
+    "description": "Hands-on course building LLMs end-to-end."
   }'
 """
 
@@ -60,7 +70,7 @@ GITHUB_RE = re.compile(r"^https?://github\.com/([^/]+)/([^/?#]+)/?", re.I)
 
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument("--kind", choices=("blog", "github"), required=True)
+    p.add_argument("--kind", choices=("blog", "github", "course"), required=True)
     p.add_argument("--metadata-json", required=True,
                    help="JSON metadata, or '-' to read from stdin")
     p.add_argument("--force", action="store_true", help="overwrite existing note")
@@ -100,7 +110,26 @@ def main(argv: list[str] | None = None) -> int:
             "url": url,
             "description": meta.get("description"),
         }
-    else:
+    elif args.kind == "course":
+        title = meta["title"]
+        slug = meta.get("slug") or slugify(title)
+        basename = stub_filename(None, slug)
+        note_meta = {
+            "type": "note",
+            "kind": "course",
+            "slug": slug,
+            "title": title,
+            "created": today(),
+            "updated": today(),
+            "read": False,
+            "tags": [],
+            "url": url,
+            "instructor": meta.get("instructor"),
+            "institution": meta.get("institution"),
+            "year": meta.get("year"),
+            "description": meta.get("description"),
+        }
+    else:  # blog
         title = meta["title"]
         slug = meta.get("slug") or slugify(title)
         basename = stub_filename(None, slug)

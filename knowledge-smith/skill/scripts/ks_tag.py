@@ -56,7 +56,7 @@ from _ks_common import (  # noqa: E402
     write_frontmatter,
 )
 
-KINDS = ("paper", "article", "youtube", "blog", "github")
+KINDS = ("paper", "article", "youtube", "blog", "github", "course")
 TAG_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,30}$")
 ABSTRACT_HEADERS = ("## Abstract", "## abstract")
 
@@ -98,7 +98,7 @@ def _build_record(vault: Path, kind: str, md: Path, meta: dict, body: str) -> di
         abstract = _abstract_from_body(body) or body.strip()[:1500]
     elif kind == "youtube":
         abstract = _abstract_from_body(body) or body.strip()[:1500]
-    else:  # blog, github
+    else:  # blog, github, course
         desc = str(meta.get("description") or "").strip()
         abstract = desc or body.strip()[:800]
 

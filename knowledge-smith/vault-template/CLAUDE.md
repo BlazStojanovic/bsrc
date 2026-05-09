@@ -50,6 +50,7 @@ reading list is the queue.
 | `notes/youtube/<year>-<slug>.md` | YouTube-video summary notes | yes |
 | `notes/blogs/<slug>.md` | Lightweight blog bookmarks (timeless) | yes |
 | `notes/github/<owner>-<repo>.md` | Lightweight GitHub bookmarks (timeless) | yes |
+| `notes/courses/<slug>.md` | Course / lecture-series bookmarks (timeless) | yes |
 | `reading-list/<kind>.md` | Generated index of unread notes (regen with `ks_reading_list.py`) | yes |
 | `raw/papers/md/<year>-<slug>.md` | Parsed paper text (ar5iv / pdftotext / docling output) | yes |
 | `raw/papers/pdf/<year>-<slug>.pdf` | Original paper PDF | **NO** (gitignored) |
@@ -149,6 +150,18 @@ description: <one sentence>
 ```
 No API metadata, no recovery — note + URL is the artifact.
 
+### `kind: course`
+```yaml
+url: <url>
+instructor: <name(s)> | null
+institution: <university / school> | null
+year: <int> | null            # offering year, when meaningful
+description: <one sentence>
+```
+A course homepage, lecture series, or training resource. Treated as a
+timeless bookmark (no year prefix on the filename), even when an
+offering year is recorded in frontmatter.
+
 ## Stable identifiers
 
 Recovery uses these identifiers when refetching binaries:
@@ -162,6 +175,7 @@ Recovery uses these identifiers when refetching binaries:
 | youtube | `youtube_id` | yt-dlp |
 | blog | none | pointer only |
 | github | none | note + URL is sufficient |
+| course | none | note + URL is sufficient |
 
 ## Naming
 
