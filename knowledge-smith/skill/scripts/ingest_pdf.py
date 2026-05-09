@@ -2,19 +2,39 @@
 # /// script
 # requires-python = ">=3.11"
 # dependencies = [
-#   "docling>=2",
 #   "httpx>=0.27",
 #   "python-frontmatter>=1.1",
 # ]
 # ///
-"""Ingest a non-arXiv PDF (local path or URL) via docling.
+"""Write a non-arxiv paper note + raw assets into the active vault.
 
-The first invocation pulls ~hundreds of MB of layout / OCR models. This is
-expected. Subsequent runs are cached.
+The agent extracts metadata (title, authors, year, abstract) by reading
+the PDF directly with Claude's `Read` tool, then passes it via
+--metadata-json. This script handles the file plumbing.
 
-Title and year cannot be reliably extracted from arbitrary PDFs, so the user
-provides them via --title / --year. For arXiv papers, prefer
-`ingest_arxiv.py`.
+Body-extraction tiers (agent picks one):
+
+  1. Metadata only          — pass nothing else; raw_md is a stub.
+  2. Quick body             — agent runs `pdftotext PDF -` itself and
+                              pipes via --body-md-path FILE.
+  3. High-fidelity (docling) — pass --docling and the script runs
+                              docling on the PDF. First run pulls
+                              hundreds of MB of layout/OCR models.
+
+Required JSON keys: title, authors (list), year (int).
+Optional: abstract, doi, venue, url.
+
+Examples:
+  # tier 1: read PDF first via Read tool, supply only metadata
+  uv run ingest_pdf.py --metadata-json '{"title":"...","authors":[...],"year":2024}' \
+      --pdf-path /tmp/paper.pdf
+
+  # tier 2: agent already extracted body
+  uv run ingest_pdf.py --metadata-json '...' --pdf-path /tmp/paper.pdf \
+      --body-md-path /tmp/paper.txt
+
+  # tier 3: opt into docling
+  uv run ingest_pdf.py --metadata-json '...' --pdf-path /tmp/paper.pdf --docling
 """
 
 from __future__ import annotations
@@ -37,142 +57,164 @@ from _ks_common import (  # noqa: E402
     slugify,
     stub_filename,
     today,
+    validate_metadata_json,
     warn,
     write_frontmatter,
 )
 
 
-def _materialize_pdf(arg: str, tmpdir: Path) -> Path:
-    """Return a local Path to the PDF, downloading if arg is a URL."""
-    if arg.startswith(("http://", "https://")):
+def _materialize_pdf(arg: str | None, url: str | None, tmpdir: Path) -> Path:
+    if arg:
+        p = Path(arg).expanduser().resolve()
+        if not p.is_file():
+            die(2, f"--pdf-path is not a file: {p}")
+        return p
+    if url:
         import httpx  # type: ignore[import-not-found]
 
-        info(f"downloading PDF: {arg}")
+        info(f"downloading PDF: {url}")
         target = tmpdir / "input.pdf"
         try:
-            with httpx.Client(follow_redirects=True, timeout=120.0) as client:
-                with client.stream("GET", arg) as resp:
-                    resp.raise_for_status()
+            with httpx.Client(follow_redirects=True, timeout=120.0,
+                              headers={"User-Agent": "knowledge-smith/0.2"}) as c:
+                with c.stream("GET", url) as r:
+                    r.raise_for_status()
                     with target.open("wb") as fh:
-                        for chunk in resp.iter_bytes():
+                        for chunk in r.iter_bytes():
                             fh.write(chunk)
         except httpx.HTTPError as exc:
             die(5, f"PDF download failed: {exc}")
         return target
-    p = Path(arg).expanduser().resolve()
-    if not p.is_file():
-        die(2, f"not a file: {p}")
-    return p
+    die(2, "must pass either --pdf-path or --pdf-url")
 
 
-def _hash_file(path: Path) -> str:
-    return sha1_short(path.read_bytes())
+def _docling_convert(pdf: Path) -> str:
+    """Shell out to the docling helper (its own PEP 723 deps).
 
+    Keeps the main script's dep tree small so non-docling invocations
+    don't pay the docling install cost.
+    """
+    import subprocess
 
-def _docling_convert(pdf: Path) -> tuple[str, str | None]:
-    """Return (markdown_body, extracted_title_or_None)."""
-    info("running docling (first run downloads models, can be slow)…")
-    from docling.document_converter import DocumentConverter  # type: ignore[import-not-found]
-
-    converter = DocumentConverter()
-    result = converter.convert(str(pdf))
-    doc = result.document
-    md = doc.export_to_markdown()
-    extracted_title = None
-    name = getattr(doc, "name", None)
-    if isinstance(name, str) and name.strip() and name.strip().lower() != pdf.stem.lower():
-        extracted_title = name.strip()
-    return md, extracted_title
+    helper = Path(__file__).resolve().parent / "helpers" / "docling_extract.py"
+    if not helper.is_file():
+        die(11, f"docling helper missing: {helper}")
+    info("running docling (first run pulls layout/OCR models — slow)…")
+    try:
+        result = subprocess.run(
+            [str(helper), str(pdf)],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    except subprocess.CalledProcessError as exc:
+        die(5, f"docling failed (exit {exc.returncode}):\n{exc.stderr}")
+    return result.stdout
 
 
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument("input", help="local PDF path or PDF URL")
-    p.add_argument("--title", help="paper title (required if docling can't extract)")
-    p.add_argument("--authors", default="",
-                   help="comma-separated authors (e.g. 'Vaswani A.,Shazeer N.')")
-    p.add_argument("--year", type=int, help="publication year (required for filename prefix)")
-    p.add_argument("--force", action="store_true", help="overwrite existing files")
+    p.add_argument("--metadata-json", required=True,
+                   help="JSON metadata, or '-' to read from stdin")
+    p.add_argument("--pdf-path", help="local PDF path (mutually exclusive with --pdf-url)")
+    p.add_argument("--pdf-url", help="PDF URL to download (mutually exclusive with --pdf-path)")
+    p.add_argument("--body-md-path",
+                   help="path to a markdown file with the body text (tier 2: agent ran "
+                        "pdftotext or similar). Mutually exclusive with --docling.")
+    p.add_argument("--docling", action="store_true",
+                   help="tier 3: run docling on the PDF for high-fidelity body markdown")
+    p.add_argument("--force", action="store_true", help="overwrite existing note")
     args = p.parse_args(argv)
 
+    if args.body_md_path and args.docling:
+        die(2, "--body-md-path and --docling are mutually exclusive")
+
+    meta = validate_metadata_json(args.metadata_json, "paper")
     vault = find_vault().path
     info(f"vault: {vault}")
 
     with tempfile.TemporaryDirectory() as tdir:
         tmpdir = Path(tdir)
-        pdf_src = _materialize_pdf(args.input, tmpdir)
-        sha = _hash_file(pdf_src)
+        pdf_src = _materialize_pdf(args.pdf_path, args.pdf_url, tmpdir)
+        sha = sha1_short(pdf_src.read_bytes())
         info(f"id (sha1): {sha}")
 
-        body_md, extracted_title = _docling_convert(pdf_src)
-        title = args.title or extracted_title
-        if not title:
-            die(2, "could not extract title; pass --title TITLE")
-        year = args.year
-        if year is None:
-            warn("no --year given; defaulting to current year for filename prefix")
-            year = int(today().split("-")[0])
-        slug = slugify(title)
-        info(f"title: {title}")
-        info(f"slug:  {slug}")
-
+        slug = slugify(meta["title"])
+        year = meta["year"]
         raw_pdf_target = raw_path(vault, "paper", f"{sha}.pdf")
         raw_md_target = raw_path(vault, "paper", f"{sha}.md")
         note_target = note_path(vault, "paper", stub_filename(year, slug))
-
         refuse_if_exists(note_target, args.force)
+
+        # Body extraction tier.
+        if args.docling:
+            parser_label = "docling"
+            body_md = _docling_convert(pdf_src)
+        elif args.body_md_path:
+            parser_label = "pdftotext"
+            body_md = Path(args.body_md_path).expanduser().read_text(encoding="utf-8")
+        else:
+            parser_label = "read"
+            body_md = ""
+
+        # Copy PDF into the vault.
         if raw_pdf_target.exists() and not args.force:
-            warn(f"raw_pdf already present, skipping copy: {raw_pdf_target}")
+            warn(f"raw_pdf already present, leaving as-is: {raw_pdf_target.relative_to(vault)}")
         else:
             raw_pdf_target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(pdf_src, raw_pdf_target)
         info(f"wrote: {raw_pdf_target.relative_to(vault)}")
 
-    authors = [a.strip() for a in args.authors.split(",") if a.strip()] if args.authors else []
-
     raw_md_meta = {
         "source": "paper",
-        "arxiv": None,
-        "url": args.input if args.input.startswith(("http://", "https://")) else None,
-        "title": title,
-        "authors": authors,
+        "arxiv": meta.get("arxiv"),
+        "url": meta.get("url") or args.pdf_url,
+        "title": meta["title"],
+        "authors": meta["authors"],
         "year": year,
         "retrieved": today(),
-        "parser": "docling",
+        "parser": parser_label,
     }
-    write_frontmatter(raw_md_target, raw_md_meta, body_md)
+    placeholder = (
+        f"<!-- body extraction tier=read; metadata-only — see {sha}.pdf -->\n"
+    )
+    write_frontmatter(raw_md_target, raw_md_meta, body_md or placeholder)
     info(f"wrote: {raw_md_target.relative_to(vault)}")
 
     note_meta = {
         "type": "note",
         "kind": "paper",
         "slug": slug,
-        "title": title,
+        "title": meta["title"],
         "created": today(),
         "updated": today(),
         "read": False,
         "tags": [],
         "year": year,
-        "authors": authors,
-        "arxiv": None,
-        "doi": None,
-        "url": args.input if args.input.startswith(("http://", "https://")) else None,
-        "venue": None,
+        "authors": meta["authors"],
+        "arxiv": meta.get("arxiv"),
+        "doi": meta.get("doi"),
+        "url": meta.get("url") or args.pdf_url,
+        "venue": meta.get("venue"),
         "raw_pdf": raw_pdf_target.relative_to(vault).as_posix(),
         "raw_md": raw_md_target.relative_to(vault).as_posix(),
-        "parser": "docling",
+        "parser": parser_label,
     }
+    abstract_block = meta.get("abstract") or "(abstract not provided)"
+    authors_str = ", ".join(meta["authors"][:3]) or "unknown"
+    authors_suffix = "…" if len(meta["authors"]) > 3 else ""
     body = (
-        f"# {title}\n\n"
-        f"> {', '.join(authors) if authors else 'unknown authors'} — {year}\n\n"
-        "## TL;DR\n\n"
-        "(stub — fill in after reading)\n\n"
-        "## Notes\n\n"
-        "(your synthesis)\n\n"
+        f"# {meta['title']}\n\n"
+        f"> *{authors_str}{authors_suffix}* — {year}\n\n"
+        "## TL;DR\n\n(stub — fill in after reading)\n\n"
+        f"## Abstract\n\n{abstract_block}\n\n"
+        "## Notes\n\n(your synthesis)\n\n"
         "## Source\n\n"
         f"- Raw markdown: [[raw/papers/{sha}]]\n"
-        f"- PDF (gitignored): `raw/papers/{sha}.pdf`\n"
+        f"- PDF: `raw/papers/{sha}.pdf`\n"
     )
+    if meta.get("url"):
+        body += f"- Original URL: <{meta['url']}>\n"
     write_frontmatter(note_target, note_meta, body)
     info(f"wrote: {note_target.relative_to(vault)}")
 
@@ -180,6 +222,7 @@ def main(argv: list[str] | None = None) -> int:
     print(f"raw_md={raw_md_target}")
     print(f"raw_pdf={raw_pdf_target}")
     print(f"id={sha}")
+    print(f"parser={parser_label}")
     return 0
 
 
