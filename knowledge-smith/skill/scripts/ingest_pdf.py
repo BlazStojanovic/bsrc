@@ -51,9 +51,8 @@ from _ks_common import (  # noqa: E402
     find_vault,
     info,
     note_path,
-    raw_path,
+    raw_paper_path,
     refuse_if_exists,
-    sha1_short,
     slugify,
     stub_filename,
     today,
@@ -136,14 +135,14 @@ def main(argv: list[str] | None = None) -> int:
     with tempfile.TemporaryDirectory() as tdir:
         tmpdir = Path(tdir)
         pdf_src = _materialize_pdf(args.pdf_path, args.pdf_url, tmpdir)
-        sha = sha1_short(pdf_src.read_bytes())
-        info(f"id (sha1): {sha}")
 
         slug = slugify(meta["title"])
         year = meta["year"]
-        raw_pdf_target = raw_path(vault, "paper", f"{sha}.pdf")
-        raw_md_target = raw_path(vault, "paper", f"{sha}.md")
-        note_target = note_path(vault, "paper", stub_filename(year, slug))
+        note_basename = stub_filename(year, slug)
+        stem = note_basename.removesuffix(".md")
+        raw_pdf_target = raw_paper_path(vault, "pdf", f"{stem}.pdf")
+        raw_md_target = raw_paper_path(vault, "md", f"{stem}.md")
+        note_target = note_path(vault, "paper", note_basename)
         refuse_if_exists(note_target, args.force)
 
         # Body extraction tier.
@@ -176,7 +175,7 @@ def main(argv: list[str] | None = None) -> int:
         "parser": parser_label,
     }
     placeholder = (
-        f"<!-- body extraction tier=read; metadata-only — see {sha}.pdf -->\n"
+        f"<!-- body extraction tier=read; metadata-only — see {stem}.pdf -->\n"
     )
     write_frontmatter(raw_md_target, raw_md_meta, body_md or placeholder)
     info(f"wrote: {raw_md_target.relative_to(vault)}")
@@ -210,8 +209,8 @@ def main(argv: list[str] | None = None) -> int:
         f"## Abstract\n\n{abstract_block}\n\n"
         "## Notes\n\n(your synthesis)\n\n"
         "## Source\n\n"
-        f"- Raw markdown: [[raw/papers/{sha}]]\n"
-        f"- PDF: `raw/papers/{sha}.pdf`\n"
+        f"- Raw markdown: [[raw/papers/md/{stem}]]\n"
+        f"- PDF: `raw/papers/pdf/{stem}.pdf`\n"
     )
     if meta.get("url"):
         body += f"- Original URL: <{meta['url']}>\n"
@@ -221,7 +220,6 @@ def main(argv: list[str] | None = None) -> int:
     print(f"note={note_target}")
     print(f"raw_md={raw_md_target}")
     print(f"raw_pdf={raw_pdf_target}")
-    print(f"id={sha}")
     print(f"parser={parser_label}")
     return 0
 

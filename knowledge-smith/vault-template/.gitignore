@@ -1,7 +1,7 @@
 # Heavy raw assets — recoverable from frontmatter where applicable.
 # `recover_raw.py` refetches these from arxiv ID / youtube_id.
-raw/papers/*.pdf
-raw/papers/*.epub
+raw/papers/pdf/*.pdf
+raw/papers/pdf/*.epub
 raw/youtube/*.m4a
 raw/youtube/*.mp3
 raw/youtube/*.mp4

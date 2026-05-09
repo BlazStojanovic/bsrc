@@ -51,9 +51,9 @@ reading list is the queue.
 | `notes/blogs/<slug>.md` | Lightweight blog bookmarks (timeless) | yes |
 | `notes/github/<owner>-<repo>.md` | Lightweight GitHub bookmarks (timeless) | yes |
 | `reading-list/<kind>.md` | Generated index of unread notes (regen with `ks_reading_list.py`) | yes |
-| `raw/papers/<id>.md` | Parsed paper text (ar5iv or docling output) | yes |
-| `raw/papers/<id>.pdf` | Original paper PDF | **NO** (gitignored) |
-| `raw/articles/<slug>.md` | Web Clipper output | yes |
+| `raw/papers/md/<year>-<slug>.md` | Parsed paper text (ar5iv / pdftotext / docling output) | yes |
+| `raw/papers/pdf/<year>-<slug>.pdf` | Original paper PDF | **NO** (gitignored) |
+| `raw/articles/<year>-<slug>.md` | Web Clipper output | yes |
 | `raw/youtube/<id>.transcript.md` | Auto-subs flattened to text | yes |
 | `raw/youtube/<id>.metadata.json` | yt-dlp metadata dump | yes |
 | `raw/youtube/<id>.audio.*` | Audio file | **NO** (gitignored) |
@@ -103,9 +103,9 @@ arxiv: <id> | null         # null for books / non-arxiv
 doi: <doi> | null
 url: <url>                 # arxiv.org/abs/... or publisher URL
 venue: <str> | null
-raw_pdf: raw/papers/<id>.pdf | null
-raw_md:  raw/papers/<id>.md  | null
-parser:  ar5iv | docling | none
+raw_pdf: raw/papers/pdf/<year>-<slug>.pdf | null
+raw_md:  raw/papers/md/<year>-<slug>.md  | null
+parser:  ar5iv | docling | pdftotext | read | none
 ```
 
 ### `kind: article`
@@ -156,7 +156,7 @@ Recovery uses these identifiers when refetching binaries:
 | `kind` | Recovery key | Method |
 |---|---|---|
 | paper (arxiv) | `arxiv` field | re-download via arxiv |
-| paper (PDF only) | `sha1(file)[:10]` (in `raw_pdf` filename) | none — local-only, warn if PDF missing |
+| paper (PDF only) | `<year>-<slug>` (in `raw_pdf` filename) | none — local-only, warn if PDF missing |
 | paper (book / no PDF) | none | none |
 | article | `sha1(url)[:10]` | best-effort URL refetch |
 | youtube | `youtube_id` | yt-dlp |
@@ -202,22 +202,27 @@ Recovery uses these identifiers when refetching binaries:
 
 ## Scripts
 
+All ingest scripts take metadata via `--metadata-json '<json>'` (the
+agent extracts metadata first; the script is I/O plumbing). See `SKILL.md`
+for the per-kind agent workflows.
+
 | Command (under `~/.claude/skills/knowledge-smith/scripts/`) | Purpose |
 |---|---|
-| `ingest_arxiv.py <id-or-url>` | Capture an arXiv paper → `notes/papers/` |
-| `ingest_pdf.py <path-or-url> --title T --year Y` | Non-arXiv PDF via docling → `notes/papers/` |
-| `ingest_article.py <clipper-md-path>` | Normalize Web Clipper output → `notes/articles/` |
-| `ingest_youtube.py <url-or-id>` | yt-dlp metadata + auto-subs → `notes/youtube/` |
-| `ingest_bookmark.py <url> [--description D]` | github or blog (auto-detected) → `notes/{github,blogs}/` |
+| `ingest_arxiv.py --metadata-json '<json>'` | Capture an arXiv paper → `notes/papers/` |
+| `ingest_pdf.py --metadata-json '<json>' --pdf-path P [--docling]` | Non-arXiv PDF → `notes/papers/` (3 body tiers) |
+| `ingest_article.py --metadata-json '<json>' --clipper-path P` | Normalize Web Clipper output → `notes/articles/` |
+| `ingest_youtube.py --metadata-json '<json>' --transcript-path P` | YouTube → `notes/youtube/` (whisper or auto-subs) |
+| `ingest_bookmark.py --kind {blog,github} --metadata-json '<json>'` | github or blog → `notes/{github,blogs}/` |
 | `ks_reading_list.py [--kind K] [--all]` | (Re)generate `reading-list/<kind>.md` |
-| `ks_tag.py [--kind K] [--force] [--model haiku\|sonnet\|opus]` | LLM-suggest tags for un-tagged notes (uses `ANTHROPIC_API_KEY`) |
+| `ks_tag.py list/apply` | I/O plumbing for subagent-driven tagging |
 | `recover_raw.py [--kind K] [--dry-run]` | Refetch gitignored binaries from frontmatter |
 | `ks_doctor.py [--init <path>]` | Health check; `--init` scaffolds a new vault |
 
 For Codex, swap `~/.claude` for `~/.codex` in the path.
 
-**First docling run** downloads ~hundreds of MB of layout/OCR models. This is
-expected. Subsequent runs are fast.
+**Tier-3 PDF parsing (`--docling`)** downloads ~hundreds of MB of layout/OCR
+models on first use. The default tier (agent reads PDF directly via the
+`Read` tool) and tier 2 (`pdftotext`) avoid this entirely.
 
 ## Vault discovery
 

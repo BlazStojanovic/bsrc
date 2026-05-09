@@ -49,7 +49,7 @@ from _ks_common import (  # noqa: E402
     find_vault,
     info,
     note_path,
-    raw_path,
+    raw_paper_path,
     refuse_if_exists,
     slugify,
     stub_filename,
@@ -123,11 +123,12 @@ def main(argv: list[str] | None = None) -> int:
 
     slug = slugify(meta["title"])
     year = meta["year"]
-    note_target = note_path(vault, "paper", stub_filename(year, slug))
+    note_basename = stub_filename(year, slug)
+    note_target = note_path(vault, "paper", note_basename)
     refuse_if_exists(note_target, args.force)
 
-    raw_md_target = raw_path(vault, "paper", f"{arxiv_id}.md")
-    raw_pdf_target = raw_path(vault, "paper", f"{arxiv_id}.pdf")
+    raw_md_target = raw_paper_path(vault, "md", note_basename)
+    raw_pdf_target = raw_paper_path(vault, "pdf", note_basename.replace(".md", ".pdf"))
 
     parser_label = "ar5iv"
     body_md = ""
@@ -186,12 +187,13 @@ def main(argv: list[str] | None = None) -> int:
     abstract_block = meta.get("abstract") or "(abstract not provided)"
     authors_short = ", ".join(meta["authors"][:3])
     authors_suffix = "…" if len(meta["authors"]) > 3 else ""
+    stem = note_basename.removesuffix(".md")
     if args.no_pdf:
-        pdf_line = f"- PDF (skipped): `raw/papers/{arxiv_id}.pdf`"
+        pdf_line = f"- PDF (skipped): `raw/papers/pdf/{stem}.pdf`"
     elif pdf_written:
-        pdf_line = f"- PDF: `raw/papers/{arxiv_id}.pdf`"
+        pdf_line = f"- PDF: `raw/papers/pdf/{stem}.pdf`"
     else:
-        pdf_line = f"- PDF (download failed): `raw/papers/{arxiv_id}.pdf`"
+        pdf_line = f"- PDF (download failed): `raw/papers/pdf/{stem}.pdf`"
     body = (
         f"# {meta['title']}\n\n"
         f"> *{authors_short}{authors_suffix}* — arXiv {arxiv_id}, {year}\n\n"
@@ -199,7 +201,7 @@ def main(argv: list[str] | None = None) -> int:
         f"## Abstract\n\n{abstract_block}\n\n"
         "## Notes\n\n(your synthesis)\n\n"
         "## Source\n\n"
-        f"- Raw markdown: [[raw/papers/{arxiv_id}]]\n"
+        f"- Raw markdown: [[raw/papers/md/{stem}]]\n"
         f"{pdf_line}\n"
         f"- arXiv: <https://arxiv.org/abs/{arxiv_id}>\n"
     )

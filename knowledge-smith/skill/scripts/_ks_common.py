@@ -200,6 +200,18 @@ def raw_path(vault: Path, kind: str, basename: str) -> Path:
     return vault / "raw" / folder / basename
 
 
+def raw_paper_path(vault: Path, ext: str, basename: str) -> Path:
+    """Path under raw/papers/<ext>/.
+
+    Papers split their raw assets by extension so the .md text and the
+    .pdf binaries live in separate, predictable folders. `ext` must be
+    one of "pdf" or "md"; `basename` already includes the extension.
+    """
+    if ext not in ("pdf", "md"):
+        raise ValueError(f"raw_paper_path ext must be 'pdf' or 'md', got {ext!r}")
+    return vault / "raw" / "papers" / ext / basename
+
+
 def stub_filename(year: int | None, slug: str) -> str:
     """Year-prefixed for dated kinds, plain for blog/github (timeless)."""
     if year is None:
