@@ -1,0 +1,110 @@
+# Knowledge-smith default schema.
+#
+# Loaded by `_ks_common.load_schema(vault)`. A vault may override per-kind
+# entries by writing its own `<vault>/.ks-schema.yaml` (only the keys it
+# wants to change — values merge over the defaults).
+#
+# Shape:
+#   common_core:
+#     required: [...]      # fields every note must carry
+#     defaults: {...}      # values filled in when the agent omits them
+#   kinds:
+#     <kind>:
+#       folder:        # under notes/<folder>/
+#       raw_folder:    # under raw/<folder>/  (omit when kind has no raw)
+#       raw_split:     # raw subdirs under raw/<folder>/ (omit when flat)
+#       dated:         # bool — year prefix on filename?
+#       required:      # per-kind frontmatter fields the agent must supply
+#       optional:      # per-kind frontmatter fields the agent may supply
+#       default_tags:  # tags injected when the agent doesn't set them
+#       link_keys:     # which keys are valid under links: {...}
+#       required_links:# subset of link_keys that must be non-null
+
+common_core:
+  required: [type, kind, slug, title, created, updated, read, owner, tags, links]
+  defaults:
+    type: note
+    read: false
+    owner: blaz
+    tags: []
+    links: {}
+
+kinds:
+  paper:
+    folder: papers
+    raw_folder: papers
+    raw_split: [pdf, md]
+    dated: true
+    required: [year, authors]
+    optional: [arxiv, doi, venue, abstract, parser, raw_pdf, raw_md]
+    default_tags: [type/paper, status/stub]
+    link_keys: [source, paper, code, raw]
+    required_links: [paper]
+
+  model-card:
+    folder: model-cards
+    raw_folder: model-cards
+    raw_split: [pdf, md]
+    dated: true
+    required: [year, developer, family, model_type]
+    optional: [variants, license, parameters_total, parameters_active, raw_pdf, raw_md]
+    default_tags: [type/model-card, status/stub, domain/models]
+    link_keys: [source, paper, raw, code]
+    required_links: [source]
+
+  article:
+    folder: articles
+    raw_folder: articles
+    dated: true
+    required: [year]
+    optional: [author, publication, retrieved, raw_md, clipper, tldr]
+    default_tags: [type/article, status/stub]
+    link_keys: [source, raw]
+    required_links: [source]
+
+  youtube:
+    folder: youtube
+    raw_folder: youtube
+    dated: true
+    required: [year, youtube_id]
+    optional: [channel, channel_id, duration_seconds, upload_date,
+               transcript_source, raw_audio, raw_transcript, raw_metadata]
+    default_tags: [type/youtube, status/stub]
+    link_keys: [source, raw]
+    required_links: [source]
+
+  blog:
+    folder: blogs
+    dated: false
+    required: []
+    optional: [author, description]
+    default_tags: [type/blog, status/stub]
+    link_keys: [source]
+    required_links: [source]
+
+  post:
+    folder: posts
+    dated: false
+    required: []
+    optional: [year, author, source, description]
+    default_tags: [type/post, status/stub]
+    link_keys: [source]
+    required_links: [source]
+
+  github:
+    folder: github
+    dated: false
+    required: []
+    optional: [description]
+    default_tags: [type/github, status/stub]
+    link_keys: [source, code]
+    required_links: [source]
+
+  course:
+    folder: courses
+    dated: false
+    required: []
+    optional: [year, instructor, institution, description]
+    default_tags: [type/course, status/stub]
+    link_keys: [source]
+    required_links: [source]

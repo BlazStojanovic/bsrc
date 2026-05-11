@@ -3,34 +3,42 @@
 This module is imported by every runner script via:
 
     sys.path.insert(0, str(Path(__file__).resolve().parent))
-    from _ks_common import find_vault, ...
+    from _ks_common import find_vault, load_schema, validate_meta, ...
 
 It is not invoked directly. The importing runner declares its own PEP 723
-deps (always including python-frontmatter, since this module uses it).
+deps (must include `python-frontmatter` and `pyyaml`).
 """
 
 from __future__ import annotations
 
+import copy
 import hashlib
 import json
 import os
 import re
 import sys
 import unicodedata
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Literal, NoReturn
+from typing import Any, Iterable, Literal, NoReturn
 
 import frontmatter  # type: ignore[import-not-found]
+import yaml  # type: ignore[import-not-found]
 
 
 VAULT_MARKER = ".knowledge-smith"
 ENV_VAR = "KNOWLEDGE_SMITH_VAULT"
+SCHEMA_OVERRIDE_FILE = ".ks-schema.yaml"
+DEFAULT_SCHEMA_PATH = Path(__file__).resolve().parent / "_ks_schema.yaml"
 
-Kind = Literal["paper", "article", "youtube", "blog", "post", "github", "course"]
+Kind = Literal[
+    "paper", "model-card", "article", "youtube",
+    "blog", "post", "github", "course",
+]
 KIND_TO_PLURAL: dict[str, str] = {
     "paper": "papers",
+    "model-card": "model-cards",
     "article": "articles",
     "youtube": "youtube",
     "blog": "blogs",
@@ -41,8 +49,14 @@ KIND_TO_PLURAL: dict[str, str] = {
 # Subset of kinds that have associated raw assets on disk.
 RAW_DIRS: dict[str, str] = {
     "paper": "papers",
+    "model-card": "model-cards",
     "article": "articles",
     "youtube": "youtube",
+}
+# Kinds whose raw/<folder>/ is split into <ext>/ subdirs (binaries gitignored).
+RAW_SPLIT: dict[str, tuple[str, ...]] = {
+    "paper": ("pdf", "md"),
+    "model-card": ("pdf", "md"),
 }
 
 # Default tag vocabulary used by ks_tag.py. A vault may override by writing
@@ -128,7 +142,8 @@ def find_vault(start: Path | None = None) -> Vault:
 # ---------------------------------------------------------------------------
 
 def slugify(text: str, max_len: int = 60) -> str:
-    """Kebab-case, ASCII, lowercase. Strip everything but [a-z0-9-]."""
+    """Kebab-case, ASCII, lowercase. Used by `ks_doctor --migrate` only —
+    new ingests receive the slug from the agent."""
     norm = unicodedata.normalize("NFKD", text)
     ascii_only = norm.encode("ascii", "ignore").decode("ascii")
     lower = ascii_only.lower()
@@ -178,6 +193,49 @@ def write_frontmatter(path: Path, meta: dict[str, Any], body: str) -> None:
     tmp.replace(path)
 
 
+def merge_frontmatter(
+    path: Path,
+    new_meta: dict[str, Any],
+    new_body: str | None,
+    *,
+    preserve_keys: Iterable[str] = ("tags", "read", "owner", "status"),
+    force_body: bool = False,
+) -> bool:
+    """Write `new_meta` + `new_body` to `path`, preserving user edits.
+
+    Returns True if the file is new, False if it was updated in place.
+
+    Behavior on existing file:
+      - For keys in `preserve_keys`, the existing value (if non-empty)
+        wins over the new value. This protects user-curated tags, read
+        state, etc. from being clobbered on re-ingest.
+      - For all other keys, the new value wins.
+      - The existing body is preserved unless `force_body=True` or the
+        existing body is empty.
+      - `updated:` is always set to today.
+      - `created:` is preserved from the existing file if present.
+    """
+    is_new = not path.exists()
+    if is_new:
+        meta = {**new_meta}
+        meta["updated"] = today()
+        write_frontmatter(path, meta, new_body or "")
+        return True
+
+    existing_meta, existing_body = read_frontmatter(path)
+    merged = {**new_meta}
+    for key in preserve_keys:
+        if key in existing_meta and existing_meta[key] not in (None, "", []):
+            merged[key] = existing_meta[key]
+    if "created" in existing_meta:
+        merged["created"] = existing_meta["created"]
+    merged["updated"] = today()
+
+    body = existing_body if (existing_body and not force_body) else (new_body or existing_body or "")
+    write_frontmatter(path, merged, body)
+    return False
+
+
 # ---------------------------------------------------------------------------
 # Path helpers.
 # ---------------------------------------------------------------------------
@@ -202,16 +260,26 @@ def raw_path(vault: Path, kind: str, basename: str) -> Path:
     return vault / "raw" / folder / basename
 
 
-def raw_paper_path(vault: Path, ext: str, basename: str) -> Path:
-    """Path under raw/papers/<ext>/.
+def raw_split_path(vault: Path, kind: str, ext: str, basename: str) -> Path:
+    """Path under raw/<kind-plural>/<ext>/.
 
-    Papers split their raw assets by extension so the .md text and the
-    .pdf binaries live in separate, predictable folders. `ext` must be
-    one of "pdf" or "md"; `basename` already includes the extension.
+    Used by kinds whose raw assets are split by extension (paper, model-card).
+    `ext` must be one of the entries in RAW_SPLIT[kind]; `basename` already
+    includes the extension.
     """
-    if ext not in ("pdf", "md"):
-        raise ValueError(f"raw_paper_path ext must be 'pdf' or 'md', got {ext!r}")
-    return vault / "raw" / "papers" / ext / basename
+    if kind not in RAW_SPLIT:
+        raise ValueError(f"raw_split_path: kind={kind!r} has no split layout")
+    if ext not in RAW_SPLIT[kind]:
+        raise ValueError(
+            f"raw_split_path: ext={ext!r} not in {RAW_SPLIT[kind]} for kind={kind}"
+        )
+    folder = RAW_DIRS[kind]
+    return vault / "raw" / folder / ext / basename
+
+
+# Back-compat alias for the original paper-only helper.
+def raw_paper_path(vault: Path, ext: str, basename: str) -> Path:
+    return raw_split_path(vault, "paper", ext, basename)
 
 
 def stub_filename(year: int | None, slug: str) -> str:
@@ -219,6 +287,18 @@ def stub_filename(year: int | None, slug: str) -> str:
     if year is None:
         return f"{slug}.md"
     return f"{year}-{slug}.md"
+
+
+def basename_from(meta: dict[str, Any], kind: str, schema: "Schema") -> str:
+    """Compute the note filename from validated metadata + schema.
+
+    Dated kinds get `<year>-<slug>.md`; undated kinds get `<slug>.md`.
+    The agent is responsible for supplying the slug — for github
+    bookmarks that means `slug = "owner-repo"`.
+    """
+    spec = schema.kind_spec(kind)
+    year = meta.get("year") if spec.get("dated") else None
+    return stub_filename(year, meta["slug"])
 
 
 def load_tag_vocab(vault: Path) -> list[str]:
@@ -245,20 +325,56 @@ def refuse_if_exists(path: Path, force: bool) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Metadata JSON validation — reused by every ingest script.
+# Schema loading and validation.
 # ---------------------------------------------------------------------------
 
-# Required and optional keys per kind. The agent supplies the JSON; the
-# script validates required keys are present and types are sane.
-REQUIRED_KEYS: dict[str, tuple[str, ...]] = {
-    "paper": ("title", "authors", "year"),
-    "article": ("title", "url"),
-    "youtube": ("youtube_id", "title"),
-    "blog": ("url", "title"),
-    "post": ("url", "title"),
-    "github": ("url",),
-    "course": ("url", "title"),
-}
+@dataclass(frozen=True)
+class Schema:
+    common_core: dict[str, Any]
+    kinds: dict[str, dict[str, Any]]
+    sources: tuple[Path, ...] = field(default_factory=tuple)
+
+    def kind_spec(self, kind: str) -> dict[str, Any]:
+        spec = self.kinds.get(kind)
+        if spec is None:
+            die(2, f"unknown kind={kind!r}; schema knows {sorted(self.kinds)}")
+        return spec
+
+    def all_kinds(self) -> tuple[str, ...]:
+        return tuple(self.kinds)
+
+
+def _deep_merge(base: dict[str, Any], over: dict[str, Any]) -> dict[str, Any]:
+    """Recursive dict merge: `over` wins for scalars, recurses on dicts."""
+    out = copy.deepcopy(base)
+    for key, val in over.items():
+        if key in out and isinstance(out[key], dict) and isinstance(val, dict):
+            out[key] = _deep_merge(out[key], val)
+        else:
+            out[key] = copy.deepcopy(val)
+    return out
+
+
+def load_schema(vault: Path | None = None) -> Schema:
+    """Load default schema, optionally overlay <vault>/.ks-schema.yaml."""
+    sources: list[Path] = []
+    with DEFAULT_SCHEMA_PATH.open("r", encoding="utf-8") as fh:
+        data = yaml.safe_load(fh)
+    sources.append(DEFAULT_SCHEMA_PATH)
+
+    if vault is not None:
+        override = vault / SCHEMA_OVERRIDE_FILE
+        if override.is_file():
+            with override.open("r", encoding="utf-8") as fh:
+                overlay = yaml.safe_load(fh) or {}
+            data = _deep_merge(data, overlay)
+            sources.append(override)
+
+    common = data.get("common_core") or {}
+    kinds = data.get("kinds") or {}
+    if not isinstance(common, dict) or not isinstance(kinds, dict):
+        die(2, f"malformed schema in {sources[-1]}: missing common_core/kinds")
+    return Schema(common_core=common, kinds=kinds, sources=tuple(sources))
 
 
 def _coerce_year(v: Any) -> int | None:
@@ -282,13 +398,90 @@ def _coerce_str_list(v: Any) -> list[str]:
     return []
 
 
-def validate_metadata_json(payload: str, kind: str) -> dict[str, Any]:
-    """Parse JSON, check required keys per kind, normalize types.
+def validate_meta(
+    meta: dict[str, Any],
+    kind: str,
+    schema: Schema,
+    *,
+    fill_defaults: bool = True,
+) -> dict[str, Any]:
+    """Validate a metadata dict against the schema and return it normalized.
 
-    Reads the JSON from `payload` (the raw string from --metadata-json or
-    `-` to read from stdin) and returns a normalized dict with sensible
-    defaults filled in. Hard-fails with `die(2, ...)` on invalid input.
+    Hard-fails with `die(2, ...)` on missing required fields. Fills
+    common-core defaults (`type`, `read`, `owner`, `tags`, `links`,
+    `created`, `updated`) and per-kind `default_tags` if `fill_defaults`.
+
+    Coerces `year` to int and `authors` to list[str] when those keys are
+    present (paper/model-card use both).
+
+    The returned dict is suitable for `write_frontmatter` directly.
     """
+    spec = schema.kind_spec(kind)
+    out: dict[str, Any] = {**meta}
+    out["kind"] = kind
+
+    # Per-kind required fields.
+    missing = [k for k in spec.get("required", []) if not out.get(k)]
+    if missing:
+        die(2, f"metadata missing required fields for kind={kind}: {missing}")
+
+    # Per-kind required link sub-keys.
+    links = out.get("links") or {}
+    if not isinstance(links, dict):
+        die(2, f"`links` must be a dict, got {type(links).__name__}")
+    missing_links = [
+        k for k in spec.get("required_links", []) if not links.get(k)
+    ]
+    if missing_links:
+        die(
+            2,
+            f"metadata missing required link keys for kind={kind}: {missing_links}",
+        )
+
+    # Light type coercion for fields the schema explicitly mentions.
+    if "year" in out:
+        out["year"] = _coerce_year(out["year"])
+    if "authors" in out:
+        out["authors"] = _coerce_str_list(out["authors"])
+
+    # Title / slug must be present (common-core).
+    for key in ("title", "slug"):
+        if not out.get(key):
+            die(2, f"metadata missing required common-core field: {key}")
+
+    if not fill_defaults:
+        return out
+
+    # Common-core defaults — fill only if the agent omitted them.
+    cc_defaults = schema.common_core.get("defaults", {}) or {}
+    for key, default in cc_defaults.items():
+        if key not in out or out[key] in (None, "", [], {}):
+            out[key] = copy.deepcopy(default)
+    out.setdefault("created", today())
+    out.setdefault("updated", today())
+
+    # Per-kind default tags merged into existing tags (deduped, order preserved).
+    default_tags = spec.get("default_tags") or []
+    if default_tags:
+        existing = list(out.get("tags") or [])
+        for t in default_tags:
+            if t not in existing:
+                existing.append(t)
+        out["tags"] = existing
+
+    # Ensure links dict has all known keys present (None when unset),
+    # so frontmatter rendering shows the canonical shape.
+    link_keys = spec.get("link_keys") or []
+    canonical_links: dict[str, Any] = {}
+    for key in link_keys:
+        canonical_links[key] = links.get(key)
+    out["links"] = canonical_links
+
+    return out
+
+
+def parse_metadata_json(payload: str) -> dict[str, Any]:
+    """Parse a `--metadata-json` payload (or '-' for stdin) to a dict."""
     if payload == "-":
         payload = sys.stdin.read()
     try:
@@ -297,7 +490,95 @@ def validate_metadata_json(payload: str, kind: str) -> dict[str, Any]:
         die(2, f"invalid JSON: {exc}")
     if not isinstance(meta, dict):
         die(2, f"metadata JSON must be an object, got {type(meta).__name__}")
+    return meta
 
+
+def parse_links_json(payload: str | None) -> dict[str, Any]:
+    """Parse the optional `--links-json` payload into a links dict."""
+    if not payload:
+        return {}
+    try:
+        out = json.loads(payload)
+    except json.JSONDecodeError as exc:
+        die(2, f"invalid --links-json: {exc}")
+    if not isinstance(out, dict):
+        die(2, f"--links-json must be an object, got {type(out).__name__}")
+    return out
+
+
+# ---------------------------------------------------------------------------
+# Self-test entry point: round-trip every vault-template skeleton.
+# ---------------------------------------------------------------------------
+
+def _self_test() -> int:
+    """Load default schema; ensure every kind's defaults validate."""
+    schema = load_schema(None)
+    info(f"schema sources: {[str(s) for s in schema.sources]}")
+    info(f"kinds: {schema.all_kinds()}")
+    failures = 0
+    for kind, spec in schema.kinds.items():
+        sample: dict[str, Any] = {
+            "title": f"sample {kind}",
+            "slug": f"sample-{kind}",
+        }
+        # Fill required per-kind fields with placeholder values.
+        for req in spec.get("required", []):
+            if req == "year":
+                sample[req] = 2024
+            elif req == "authors":
+                sample[req] = ["Sample Author"]
+            else:
+                sample[req] = f"sample-{req}"
+        # Fill required link keys with placeholders.
+        sample["links"] = {k: f"https://example.com/{k}" for k in spec.get("required_links", [])}
+        try:
+            out = validate_meta(sample, kind, schema)
+        except SystemExit as exc:
+            err(f"kind={kind} sample failed: {exc}")
+            failures += 1
+            continue
+        if out.get("kind") != kind:
+            err(f"kind={kind} round-trip dropped kind field")
+            failures += 1
+        else:
+            info(f"  ok: {kind} (links={list(out['links'])}, tags={out['tags']})")
+    if failures:
+        err(f"{failures} self-test failure(s)")
+        return 1
+    info("self-test: all kinds OK")
+    return 0
+
+
+if __name__ == "__main__":
+    if "--self-test" in sys.argv:
+        raise SystemExit(_self_test())
+    err("_ks_common is a library; pass --self-test to validate the schema")
+    raise SystemExit(2)
+
+
+# ---------------------------------------------------------------------------
+# Legacy validate_metadata_json — kept until all ingest scripts migrate to
+# `validate_meta`. Mirrors the old behavior with hardcoded REQUIRED_KEYS.
+# ---------------------------------------------------------------------------
+
+REQUIRED_KEYS: dict[str, tuple[str, ...]] = {
+    "paper": ("title", "authors", "year"),
+    "article": ("title", "url"),
+    "youtube": ("youtube_id", "title"),
+    "blog": ("url", "title"),
+    "post": ("url", "title"),
+    "github": ("url",),
+    "course": ("url", "title"),
+}
+
+
+def validate_metadata_json(payload: str, kind: str) -> dict[str, Any]:
+    """Legacy validator — superseded by `validate_meta(schema)`.
+
+    Retained only so older ingest scripts still parse; new scripts call
+    `validate_meta` against a loaded `Schema`.
+    """
+    meta = parse_metadata_json(payload)
     required = REQUIRED_KEYS.get(kind)
     if required is None:
         die(2, f"unknown kind={kind!r}; must be one of {tuple(REQUIRED_KEYS)}")
@@ -305,7 +586,6 @@ def validate_metadata_json(payload: str, kind: str) -> dict[str, Any]:
     if missing:
         die(2, f"metadata JSON missing required keys for kind={kind}: {missing}")
 
-    # Per-kind normalization.
     if kind == "paper":
         meta["year"] = _coerce_year(meta.get("year"))
         meta["authors"] = _coerce_str_list(meta.get("authors"))
