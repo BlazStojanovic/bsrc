@@ -5,9 +5,9 @@ Read this before editing anything in the vault.
 ## Purpose
 
 This vault is the **indexing tier** of a personal research knowledge base.
-It captures sources from many channels (papers, web articles, YouTube videos,
-blog pointers, GitHub repos) and stores **one summary note per source** —
-1-to-1, never many-to-many.
+It captures sources from many channels (papers, model cards, web articles,
+YouTube videos, blog pointers, posts, GitHub repos, courses) and stores
+**one summary note per source** — 1-to-1, never many-to-many.
 
 Concept-level synthesis (cross-source reasoning, distilled prose, writing
 work) lives elsewhere. This vault does data indexing only.
@@ -26,15 +26,15 @@ the vault (in `bsrc/`) and is invoked via the knowledge-smith skill.
 ## Pipeline
 
 ```
-[arxiv | PDF | Web Clipper | YouTube | github | blog]
-                 │
-                 ▼
+[arxiv | model card | PDF | Web Clipper | YouTube | github | blog | post]
+                            │
+                            ▼
         notes/<kind>/<slug>.md          read: false
-                 │
-                 ▼   (generate / regenerate)
+                            │
+                            ▼   (generate / regenerate)
         reading-list/<kind>.md          (auto)
-                 │
-                 ▼   (you read it; flip read: true)
+                            │
+                            ▼   (you read it; flip read: true)
         notes/<kind>/<slug>.md          read: true   ← drops out of reading-list
 ```
 
@@ -45,21 +45,24 @@ reading list is the queue.
 
 | Folder | Role | Committed? |
 |---|---|---|
-| `notes/papers/<year>-<slug>.md` | Paper summary notes | yes |
-| `notes/articles/<year>-<slug>.md` | Web-article summary notes | yes |
-| `notes/youtube/<year>-<slug>.md` | YouTube-video summary notes | yes |
-| `notes/blogs/<slug>.md` | Source-level blog bookmarks (a homepage / publication you follow) | yes |
-| `notes/posts/<slug>.md` | Individual blog-post / web-article bookmarks | yes |
-| `notes/github/<owner>-<repo>.md` | Lightweight GitHub bookmarks (timeless) | yes |
-| `notes/courses/<slug>.md` | Course / lecture-series bookmarks (timeless) | yes |
-| `reading-list/<kind>.md` | Generated index of unread notes (regen with `ks_reading_list.py`) | yes |
-| `raw/papers/md/<year>-<slug>.md` | Parsed paper text (ar5iv / pdftotext / docling output) | yes |
-| `raw/papers/pdf/<year>-<slug>.pdf` | Original paper PDF | **NO** (gitignored) |
-| `raw/articles/<year>-<slug>.md` | Web Clipper output | yes |
-| `raw/youtube/<id>.transcript.md` | Auto-subs flattened to text | yes |
-| `raw/youtube/<id>.metadata.json` | yt-dlp metadata dump | yes |
-| `raw/youtube/<id>.audio.*` | Audio file | **NO** (gitignored) |
-| `templates/` | Note templates | yes |
+| `notes/papers/<year>-<slug>.md`        | Paper summary notes | yes |
+| `notes/model-cards/<year>-<slug>.md`   | Model architecture / system-card snapshot notes | yes |
+| `notes/articles/<year>-<slug>.md`      | Web-article summary notes | yes |
+| `notes/youtube/<year>-<slug>.md`       | YouTube-video summary notes | yes |
+| `notes/blogs/<slug>.md`                | Source-level blog bookmarks | yes |
+| `notes/posts/<slug>.md`                | Individual blog-post / web-article bookmarks | yes |
+| `notes/github/<owner>-<repo>.md`       | GitHub bookmarks (timeless) | yes |
+| `notes/courses/<slug>.md`              | Course / lecture-series bookmarks (timeless) | yes |
+| `reading-list/<kind>.md`               | Generated index of unread notes | yes |
+| `raw/papers/md/<year>-<slug>.md`       | Parsed paper text (ar5iv / pdftotext / docling) | yes |
+| `raw/papers/pdf/<year>-<slug>.pdf`     | Original paper PDF | **NO** (gitignored) |
+| `raw/model-cards/md/<year>-<slug>.md`  | Parsed text of model cards / system cards | yes |
+| `raw/model-cards/pdf/<year>-<slug>.pdf`| Original model/system card PDF | **NO** (gitignored) |
+| `raw/articles/<year>-<slug>.md`        | Web Clipper output | yes |
+| `raw/youtube/<id>.transcript.md`       | Auto-subs / whisper transcript | yes |
+| `raw/youtube/<id>.metadata.json`       | yt-dlp metadata dump | yes |
+| `raw/youtube/<id>.audio.*`             | Audio file | **NO** (gitignored) |
+| `templates/`                           | Note templates | yes |
 
 Anything large and binary lives under `raw/<kind>/` and is gitignored. The
 parsed-text equivalent (always markdown) is committed and serves as recovery
@@ -72,13 +75,19 @@ Every committed file in `notes/` carries:
 ```yaml
 ---
 type: note
-kind: paper | article | youtube | blog | github
+kind: paper | model-card | article | youtube | blog | post | github | course
 slug: <kebab-case>
 title: <string>
 created: YYYY-MM-DD
 updated: YYYY-MM-DD
-read: false                # drives reading-list inclusion
-tags: []                   # ks_tag.py + user-curated
+read: false                # boolean — drives reading-list inclusion
+owner: blaz                # who curates this note
+tags: [type/<kind>, status/<x>, domain/<x>, ...]   # namespaced
+links:
+  source: <canonical URL the user passed>
+  paper:  <arxiv-or-doi-url> | null     # paper kinds
+  code:   <repo-url> | null             # github / model-card kinds
+  raw:    <wikilink-or-path> | null     # to the parsed raw asset
 ---
 ```
 
@@ -87,7 +96,7 @@ Reading-list pages are generated and carry:
 ```yaml
 ---
 type: reading-list
-kind: papers | articles | youtube | blogs | github
+kind: papers | model-cards | articles | youtube | blogs | posts | github | courses
 generated: <iso8601>
 unread_count: <int>
 ---
@@ -95,88 +104,130 @@ unread_count: <int>
 
 ## Per-kind frontmatter
 
-Additive on top of the common core.
+Additive on top of the common core. The schema lives at
+`bsrc/knowledge-smith/skill/scripts/_ks_schema.yaml` (default). Override
+per-vault by writing your own `<vault>/.ks-schema.yaml` — only the keys
+you want to change; the merge is recursive.
 
 ### `kind: paper`
 ```yaml
 year: <int>
 authors: [<list>]
-arxiv: <id> | null         # null for books / non-arxiv
+arxiv: <id> | null
 doi: <doi> | null
-url: <url>                 # arxiv.org/abs/... or publisher URL
 venue: <str> | null
+parser: ar5iv | docling | pdftotext | read | none
 raw_pdf: raw/papers/pdf/<year>-<slug>.pdf | null
-raw_md:  raw/papers/md/<year>-<slug>.md  | null
-parser:  ar5iv | docling | pdftotext | read | none
+raw_md:  raw/papers/md/<year>-<slug>.md
+links.paper required.
 ```
+
+### `kind: model-card`
+```yaml
+year: <int>                        # release / report year
+developer: <org or lab>
+family: <model family name>
+variants: [<flagship>, <small>, ...]
+license: <license id or url>
+model_type: llm | multimodal | system-card | world-model | vision | ...
+parameters_total:  "<671B>" | null
+parameters_active: "<37B>"  | null
+raw_pdf: raw/model-cards/pdf/<year>-<slug>.pdf | null
+raw_md:  raw/model-cards/md/<year>-<slug>.md   | null
+links.source required.
+```
+
+Body shape is **architecture-rich**: Model Family table, Architecture
+table (with optional MoE sub-table), Key Architecture Choices, Training,
+Reported Evals, Related, Caveats. See `templates/model-card-note.md`.
 
 ### `kind: article`
 ```yaml
 year: <pub year>
-url: <url>
 author: <name> | null
 publication: <outlet>
 retrieved: YYYY-MM-DD
-raw_md: raw/articles/<year>-<slug>.md
 clipper: obsidian-web-clipper
+raw_md: raw/articles/<year>-<slug>.md
+links.source required.
 ```
 
 ### `kind: youtube`
 ```yaml
 year: <upload year>
 youtube_id: <id>
-url: https://youtu.be/<id>
 channel: <name>
 channel_id: UC...
 duration_seconds: <int>
 upload_date: YYYY-MM-DD
-raw_audio: raw/youtube/<id>.audio.m4a | null   # gitignored, slice-2 fetch
+transcript_source: yt-auto | whisper | human | none
+raw_audio: raw/youtube/<id>.audio.mp3 | null   # gitignored
 raw_transcript: raw/youtube/<id>.transcript.md
 raw_metadata:   raw/youtube/<id>.metadata.json
-transcript_source: yt-auto | whisper
+links.source required.
 ```
 
 ### `kind: blog`
-A *source* you follow — a blog homepage, newsletter, or research-blog
-landing page (e.g. `https://eugeneyan.com/`, `https://transformer-circuits.pub/`).
+A *source* you follow — a blog homepage / newsletter / research-blog
+landing page (e.g. `eugeneyan.com`, `transformer-circuits.pub`).
 ```yaml
-url: <url>
 author: <name> | null
-description: <one sentence about who/what the source covers>
+description: <one sentence>
+links.source required (homepage URL).
 ```
 No raw, no recovery. Use `kind: post` for an individual article.
 
 ### `kind: post`
-An *individual* blog post or web article you want to read or have
-read. Treated as a timeless bookmark (no year prefix on filename),
-though `year` may be filled in when the post date is known.
+An *individual* blog post or web article. Treated as a timeless
+bookmark (no year prefix on filename), though `year` may be filled in
+when the post date is known.
 ```yaml
-url: <url>
+year: <int> | null
 author: <name> | null
 source: <publication or blog title> | null
-year: <int> | null
-description: <one sentence about the post> | null
+description: <one sentence>
+links.source required (article URL).
 ```
-No raw, no recovery — note + URL is the artifact.
 
 ### `kind: github`
 ```yaml
-url: https://github.com/<owner>/<repo>
 description: <one sentence>
+links.source required (repo URL).
+links.code typically mirrors links.source.
 ```
-No API metadata, no recovery — note + URL is the artifact.
 
 ### `kind: course`
 ```yaml
-url: <url>
+year: <int> | null               # offering year
 instructor: <name(s)> | null
 institution: <university / school> | null
-year: <int> | null            # offering year, when meaningful
 description: <one sentence>
+links.source required (homepage URL).
 ```
-A course homepage, lecture series, or training resource. Treated as a
-timeless bookmark (no year prefix on the filename), even when an
-offering year is recorded in frontmatter.
+
+## Tag conventions
+
+Tags are namespaced strings (`type/...`, `status/...`, `read/...`,
+`domain/...`, `model-type/...`). Default tags injected at ingest:
+
+| Kind | Default tags |
+|---|---|
+| paper      | `type/paper, status/stub` |
+| model-card | `type/model-card, status/stub, domain/models` |
+| article    | `type/article, status/stub` |
+| youtube    | `type/youtube, status/stub` |
+| blog       | `type/blog, status/stub` |
+| post       | `type/post, status/stub` |
+| github     | `type/github, status/stub` |
+| course     | `type/course, status/stub` |
+
+Free-form tags are allowed in addition. `ks_tag.py` adds 2-5 specific
+topical tags from the controlled vocabulary at `<vault>/.ks-tag-vocab`
+(or the default vocab in `_ks_common.py` if the file is absent).
+
+The **`read:` boolean** is the source of truth for reading-list filtering.
+Older `read/unread` and `read/read` tags are obsolete; `ks_doctor --migrate`
+strips them when it sees them.
 
 ## Stable identifiers
 
@@ -185,9 +236,9 @@ Recovery uses these identifiers when refetching binaries:
 | `kind` | Recovery key | Method |
 |---|---|---|
 | paper (arxiv) | `arxiv` field | re-download via arxiv |
-| paper (PDF only) | `<year>-<slug>` (in `raw_pdf` filename) | none — local-only, warn if PDF missing |
-| paper (book / no PDF) | none | none |
-| article | `sha1(url)[:10]` | best-effort URL refetch |
+| paper (PDF only) | `<year>-<slug>` (in `raw_pdf` filename) | none — local-only |
+| model-card | `<year>-<slug>` (in `raw_pdf`) | none — local-only |
+| article | `links.source` | best-effort URL refetch |
 | youtube | `youtube_id` | yt-dlp |
 | blog | none | pointer only |
 | post | none | pointer only |
@@ -196,13 +247,12 @@ Recovery uses these identifiers when refetching binaries:
 
 ## Naming
 
-- **Folders carry kind.** Don't prefix filenames with `paper-`, `article-`,
-  etc.
+- **Folders carry kind.** Don't prefix filenames with `paper-`, etc.
 - **Kebab-case slugs.**
-- **Year prefix on dated kinds.** `paper`, `article`, `youtube` use
-  `YYYY-slug.md` (publication or upload year).
-- **No year prefix on bookmarks.** `blog` and `github` use just `<slug>.md`
-  — these are timeless pointers.
+- **Year prefix on dated kinds.** `paper`, `model-card`, `article`,
+  `youtube` use `YYYY-slug.md` (publication / upload / release year).
+- **No year prefix on bookmarks.** `blog`, `post`, `github`, `course`
+  use just `<slug>.md`.
 - Avoid generic names (`notes.md`, `misc.md`).
 
 ## Core rules
@@ -213,52 +263,62 @@ Recovery uses these identifiers when refetching binaries:
 2. **Don't commit binaries.** Anything under `raw/` that is not `*.md` or
    `*.json` is gitignored. `ks_doctor.py` flags slips.
 3. **Frontmatter is load-bearing.** `type`, `kind`, `read`, `created`,
-   `updated`, plus the kind-specific identifiers, must be accurate. Recovery,
-   reading-list rendering, and tagging all depend on it.
-4. **`read:` is a boolean, not a process.** Default `false`. Flip to `true`
-   once you've processed the source. The reading list filters on this field.
+   `updated`, `owner`, `links`, plus the kind-specific identifiers, must
+   be accurate. Recovery, reading-list rendering, validation, and tagging
+   all depend on it.
+4. **`read:` is a boolean, not a process.** Default `false`. Flip to
+   `true` once you've processed the source. The reading list filters on
+   this field.
 5. **Recover, don't archive.** If a binary disappears, refetch with
    `recover_raw.py`. Don't unignore the gitignored path.
-6. **Update `updated:`** whenever you edit a note.
+6. **Update `updated:`** whenever you edit a note (the ingest scripts
+   handle this automatically via `merge_frontmatter`).
 7. **Don't invent metadata.** Unknown fields → `null` (or omit if optional).
    Authors, dates, venues — if not present in the source, leave blank.
-8. **GitHub and blog notes are minimal.** URL + description. No API fetching,
-   no stars/language tracking, no recovery.
-9. **Tags drive search.** Run `ks_tag.py` on freshly-ingested notes; it adds
-   2–5 tags from a controlled vocabulary plus free-form additions. Edit by
-   hand whenever the suggestion is wrong.
-10. **Reading-list pages are generated.** Don't hand-edit `reading-list/*.md`
-    — `ks_reading_list.py` will overwrite. If you need a curated reading map,
-    keep it elsewhere (your writing vault).
-11. **Paper notes always carry a PDF wikilink.** Every `notes/papers/<stem>.md`
-    has a Source section line of the form
-    `- PDF: [[raw/papers/pdf/<stem>.pdf]]`, even when the PDF isn't on disk
-    (book stubs, `--no-pdf` ingests, failed downloads). The unresolved link
-    is intentional — the user can drop a PDF at the canonical path later.
+8. **GitHub and blog notes are minimal.** URL + description. No API
+   fetching, no stars/language tracking, no recovery.
+9. **Tags drive search.** Run `ks_tag.py` on freshly-ingested notes; it
+   adds 2–5 tags from a controlled vocabulary plus free-form additions.
+   Edit by hand whenever the suggestion is wrong.
+10. **Reading-list pages are generated.** Don't hand-edit
+    `reading-list/*.md` — `ks_reading_list.py` will overwrite.
+11. **Paper notes always carry a PDF wikilink** in the body's Source
+    section: `- PDF: [[raw/papers/pdf/<stem>.pdf]]`, even when the PDF
+    isn't on disk. The unresolved link is intentional — the user can
+    drop a PDF at the canonical path later.
+
+## Schema
+
+The schema is data-driven. Default at
+`bsrc/knowledge-smith/skill/scripts/_ks_schema.yaml`; per-vault override
+at `<vault>/.ks-schema.yaml`. Both `ks_doctor` and the ingest scripts
+load it. Extend by adding new kinds or new fields under `kinds.<kind>.optional`.
 
 ## Scripts
 
-All ingest scripts take metadata via `--metadata-json '<json>'` (the
-agent extracts metadata first; the script is I/O plumbing). See `SKILL.md`
-for the per-kind agent workflows.
+All ingest scripts take metadata via `--metadata-json '<json>'`. The
+agent extracts metadata first; the script is I/O plumbing. The agent
+also supplies the rendered note body via `--body-md-path` (or omits to
+write a stub). See `SKILL.md` for the per-kind agent workflows.
 
 | Command (under `~/.claude/skills/knowledge-smith/scripts/`) | Purpose |
 |---|---|
-| `ingest_arxiv.py --metadata-json '<json>'` | Capture an arXiv paper → `notes/papers/` |
-| `ingest_pdf.py --metadata-json '<json>' --pdf-path P [--docling]` | Non-arXiv PDF → `notes/papers/` (3 body tiers) |
-| `ingest_article.py --metadata-json '<json>' --clipper-path P` | Normalize Web Clipper output → `notes/articles/` |
-| `ingest_youtube.py --metadata-json '<json>' --transcript-path P` | YouTube → `notes/youtube/` (whisper or auto-subs) |
-| `ingest_bookmark.py --kind {blog,github} --metadata-json '<json>'` | github or blog → `notes/{github,blogs}/` |
+| `ingest_arxiv.py --metadata-json '<json>' [--body-md-path P]`        | Capture an arXiv paper → `notes/papers/` |
+| `ingest_pdf.py --metadata-json '<json>' --pdf-path P [--raw-md-path R --parser TIER]` | Non-arXiv PDF → `notes/papers/` |
+| `ingest_model_card.py --metadata-json '<json>' [--pdf-path P --body-md-path B]` | Model architecture / system card → `notes/model-cards/` |
+| `ingest_article.py --metadata-json '<json>' --clipper-path P` | Web Clipper article → `notes/articles/` |
+| `ingest_youtube.py --metadata-json '<json>' [--transcript-path T --transcript-source S]` | YouTube → `notes/youtube/` |
+| `ingest_bookmark.py --kind {blog,post,github,course} --metadata-json '<json>'` | Bookmark → `notes/{blogs,posts,github,courses}/` |
 | `ks_reading_list.py [--kind K] [--all]` | (Re)generate `reading-list/<kind>.md` |
 | `ks_tag.py list/apply` | I/O plumbing for subagent-driven tagging |
 | `recover_raw.py [--kind K] [--dry-run]` | Refetch gitignored binaries from frontmatter |
-| `ks_doctor.py [--init <path>]` | Health check; `--init` scaffolds a new vault |
+| `ks_doctor.py [--init <path>] [--migrate [--dry-run] [--kind K]]` | Health check / scaffold / migrate |
+
+Helpers under `helpers/` are composable building blocks the agent can
+invoke directly: `download_pdf.py`, `fetch_ar5iv.py`, `pdftotext.sh`,
+`run_docling.py`, `vtt_flatten.py`, `transcribe.sh`, `clipper_copy.py`.
 
 For Codex, swap `~/.claude` for `~/.codex` in the path.
-
-**Tier-3 PDF parsing (`--docling`)** downloads ~hundreds of MB of layout/OCR
-models on first use. The default tier (agent reads PDF directly via the
-`Read` tool) and tier 2 (`pdftotext`) avoid this entirely.
 
 ## Vault discovery
 
@@ -269,19 +329,22 @@ Scripts find this vault by:
 2. Walking the current working directory upward for `.knowledge-smith`.
 3. Otherwise the script hard-fails with an init hint.
 
-There is **no default vault path**. Multiple vaults coexist trivially — `cd`
-into the one you mean, or set the env var.
+There is **no default vault path**. Multiple vaults coexist trivially —
+`cd` into the one you mean, or set the env var.
 
 ## Collaboration with agents
 
-- Agents may write into `notes/<kind>/` and `raw/` only via the `ingest_*.py`
-  scripts. Direct writes to `raw/` are forbidden.
-- Agents may edit frontmatter (`read`, `tags`, `updated`, descriptions) and
-  the body of a note.
-- Agents may run `ks_tag.py` and `ks_reading_list.py` to keep search and the
-  reading list current.
-- Agents must preserve user-written prose in note bodies. Additions go in new
-  sections; corrections via `## Update (YYYY-MM-DD)` blocks rather than
-  silent rewrites.
-- Agents must update `updated:` on every file they touch.
+- Agents may write into `notes/<kind>/` and `raw/` only via the
+  `ingest_*.py` scripts. Direct writes to `raw/` are forbidden.
+- Agents may edit frontmatter (`read`, `tags`, `updated`, descriptions,
+  `links`) and the body of a note.
+- Agents may run `ks_tag.py`, `ks_reading_list.py`, and
+  `ks_doctor.py --migrate` to keep search, reading-list, and schema
+  conformance current.
+- Agents must preserve user-written prose in note bodies. Additions go in
+  new sections; corrections via `## Update (YYYY-MM-DD)` blocks rather
+  than silent rewrites. `merge_frontmatter` already preserves the body
+  on re-ingest unless `--force`.
+- Agents must update `updated:` on every file they touch (handled by the
+  ingest scripts automatically).
 - Agents must not hand-edit `reading-list/*.md`. Regenerate via the script.

@@ -2,6 +2,7 @@
 # `recover_raw.py` refetches these from arxiv ID / youtube_id.
 raw/papers/pdf/*.pdf
 raw/papers/pdf/*.epub
+raw/model-cards/pdf/*.pdf
 raw/youtube/*.m4a
 raw/youtube/*.mp3
 raw/youtube/*.mp4

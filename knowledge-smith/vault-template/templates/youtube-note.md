@@ -6,23 +6,26 @@ title: <video title>
 created: YYYY-MM-DD
 updated: YYYY-MM-DD
 read: false
-tags: []
+owner: blaz
+tags: [type/youtube, status/stub]
 year: YYYY
 youtube_id: <id>
-url: https://youtu.be/<id>
-channel: <channel name>
+channel: <name>
 channel_id: UC...
 duration_seconds: 0
 upload_date: YYYY-MM-DD
-raw_audio: null
+transcript_source: yt-auto       # whisper | yt-auto | human | none
+raw_audio: raw/youtube/<id>.audio.mp3
 raw_transcript: raw/youtube/<id>.transcript.md
 raw_metadata: raw/youtube/<id>.metadata.json
-transcript_source: yt-auto
+links:
+  source: https://youtu.be/<id>
+  raw:    "[[raw/youtube/<id>.transcript]]"
 ---
 
-# <title>
+# <video title>
 
-> *<channel>* — uploaded <upload_date> — <duration_seconds>s
+> *<channel>* — uploaded <YYYY-MM-DD> — <duration>s
 
 ## TL;DR
 
@@ -36,5 +39,5 @@ transcript_source: yt-auto
 
 - Transcript: [[raw/youtube/<id>.transcript]]
 - Metadata: `raw/youtube/<id>.metadata.json`
-- Audio (gitignored, slice-2): `raw/youtube/<id>.audio.m4a`
-- Original: <url>
+- Audio (gitignored): `raw/youtube/<id>.audio.mp3`
+- Original: <https://youtu.be/<id>>

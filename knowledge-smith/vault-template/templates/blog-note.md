@@ -2,20 +2,26 @@
 type: note
 kind: blog
 slug: <kebab-case>
-title: <blog name>
+title: <Source name (blog / publication)>
 created: YYYY-MM-DD
 updated: YYYY-MM-DD
 read: false
-tags: []
-url: <blog url>
-author: <author or null>
-description: <one sentence about what the blog covers>
+owner: blaz
+tags: [type/blog, status/stub]
+author: <name or null>
+description: <one sentence on who/what they cover>
+links:
+  source: <homepage URL>
 ---
 
-# <blog name>
+# <Source name>
 
-<one sentence about why this blog is worth following>
+<one-sentence hook about the publication>
 
-## Notes
+## Why follow
 
-(any thoughts about specific posts, themes, why this earned a bookmark)
+(what makes this source worth tracking — themes, frequency, signal-to-noise)
+
+## Notable posts
+
+- (wikilinks to `notes/posts/<slug>` for individual posts you've saved)

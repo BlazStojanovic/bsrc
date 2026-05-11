@@ -2,18 +2,21 @@
 type: note
 kind: article
 slug: <kebab-case>
-title: <article title>
+title: <full title>
 created: YYYY-MM-DD
 updated: YYYY-MM-DD
 read: false
-tags: []
+owner: blaz
+tags: [type/article, status/stub]
 year: YYYY
-url: <article url>
-author: <author or null>
-publication: <publication or null>
+author: <name or null>
+publication: <outlet or null>
 retrieved: YYYY-MM-DD
-raw_md: raw/articles/<year>-<slug>.md
 clipper: obsidian-web-clipper
+raw_md: raw/articles/<year>-<slug>.md
+links:
+  source: <original URL>
+  raw:    "[[raw/articles/<year>-<slug>]]"
 ---
 
 # <title>
@@ -22,11 +25,7 @@ clipper: obsidian-web-clipper
 
 ## TL;DR
 
-(stub)
-
-## Excerpt
-
-<first ~200 chars>
+(distilled 1-2 sentences from reading the body)
 
 ## Notes
 

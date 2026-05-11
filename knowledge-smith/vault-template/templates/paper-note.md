@@ -6,16 +6,21 @@ title: <full title>
 created: YYYY-MM-DD
 updated: YYYY-MM-DD
 read: false
-tags: []
+owner: blaz
+tags: [type/paper, status/stub]
 year: YYYY
 authors: ["Last F.", "Last F."]
 arxiv: <id or null>
 doi: null
-url: <abs url or null>
 venue: null
-raw_pdf: raw/papers/<id>.pdf
-raw_md: raw/papers/<id>.md
 parser: ar5iv
+raw_pdf: raw/papers/pdf/<year>-<slug>.pdf
+raw_md: raw/papers/md/<year>-<slug>.md
+links:
+  source: https://arxiv.org/abs/<id>
+  paper:  https://arxiv.org/abs/<id>
+  code:   null
+  raw:    "[[raw/papers/md/<year>-<slug>]]"
 ---
 
 # <title>
@@ -28,7 +33,7 @@ parser: ar5iv
 
 ## Abstract
 
-<from arxiv API or paper>
+<from arXiv abstract page or paper>
 
 ## Notes
 
@@ -36,5 +41,6 @@ parser: ar5iv
 
 ## Source
 
-- Raw markdown: [[raw/papers/<id>]]
-- PDF (gitignored, fetch with `recover_raw.py`): `raw/papers/<id>.pdf`
+- Raw markdown: [[raw/papers/md/<year>-<slug>]]
+- PDF (gitignored, fetch with `recover_raw.py`): `raw/papers/pdf/<year>-<slug>.pdf`
+- arXiv: <https://arxiv.org/abs/<id>>
