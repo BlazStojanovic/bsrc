@@ -1,7 +1,7 @@
 #!/usr/bin/env -S uv run --quiet --script
 # /// script
 # requires-python = ">=3.11"
-# dependencies = ["python-frontmatter>=1.1"]
+# dependencies = ["python-frontmatter>=1.1", "pyyaml>=6.0"]
 # ///
 """Generate reading-list/<kind>.md from notes/<kind>/ entries with read=false.
 
@@ -35,8 +35,8 @@ from _ks_common import (  # noqa: E402
     write_frontmatter,
 )
 
-KINDS = ("paper", "article", "youtube", "blog", "post", "github", "course")
-DATED_KINDS = {"paper", "article", "youtube"}
+KINDS = ("paper", "model-card", "article", "youtube", "blog", "post", "github", "course")
+DATED_KINDS = {"paper", "model-card", "article", "youtube"}
 
 
 def _format_authors(authors: list | None) -> str:
@@ -59,6 +59,16 @@ def _entry_line(kind: str, meta: dict, basename: str) -> str:
     authors_str = _format_authors(meta.get("authors"))
     if kind == "paper":
         suffix = f" — {authors_str}" if authors_str else ""
+        return f"- [[notes/{plural}/{stem}|{title}]]{suffix}"
+    if kind == "model-card":
+        developer = str(meta.get("developer") or "").strip()
+        variants = meta.get("variants")
+        if isinstance(variants, list):
+            variants_str = ", ".join(str(v).strip() for v in variants if str(v).strip())
+        else:
+            variants_str = str(variants or "").strip()
+        bits = [b for b in (developer, variants_str) if b]
+        suffix = f" — {' · '.join(bits)}" if bits else ""
         return f"- [[notes/{plural}/{stem}|{title}]]{suffix}"
     if kind == "article":
         author = meta.get("author") or authors_str
