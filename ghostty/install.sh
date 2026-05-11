@@ -29,5 +29,7 @@ fi
 
 link_file "$ROOT_DIR/ghostty/config.ghostty" "$HOME/.config/ghostty/config.ghostty"
 link_file "$ROOT_DIR/ghostty/config.ghostty" "$HOME/.config/ghostty/config"
+link_file "$ROOT_DIR/ghostty/config.ghostty" "$HOME/Library/Application Support/com.mitchellh.ghostty/config.ghostty"
+link_file "$ROOT_DIR/ghostty/config.ghostty" "$HOME/Library/Application Support/com.mitchellh.ghostty/config"
 link_file "$ROOT_DIR/ghostty/monokai-custom.theme" "$HOME/.config/ghostty/themes/monokai-custom.theme"
 link_file "$ROOT_DIR/ghostty/monokai-custom-light.theme" "$HOME/.config/ghostty/themes/monokai-custom-light.theme"
