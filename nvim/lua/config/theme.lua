@@ -42,11 +42,29 @@ local palettes = {
 }
 
 local function get_appearance()
-  local output = vim.fn.system("defaults read -g AppleInterfaceStyle 2>/dev/null")
-  if vim.v.shell_error == 0 and output:match("Dark") then
-    return "dark"
+  if vim.fn.has("mac") == 1 then
+    local output = vim.fn.system("defaults read -g AppleInterfaceStyle 2>/dev/null")
+    if vim.v.shell_error == 0 and output:match("Dark") then
+      return "dark"
+    end
+    return "light"
   end
-  return "light"
+
+  local fgbg = vim.env.COLORFGBG
+  if fgbg then
+    local bg = fgbg:match(";(%d+)$")
+    if bg then
+      local n = tonumber(bg)
+      if n and n >= 0 and n <= 6 then
+        return "dark"
+      end
+      if n and n >= 7 then
+        return "light"
+      end
+    end
+  end
+
+  return "dark"
 end
 
 function M.apply(force)

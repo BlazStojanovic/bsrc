@@ -170,7 +170,7 @@
     "enabled": true,
     "mode": "hold"
   },
-  "theme": "light",
+  "theme": "dark-ansi",
   "verbose": true,
   "preferredNotifChannel": "ghostty",
   "autoCompactEnabled": false,

@@ -48,8 +48,53 @@ install_brew_packages() {
   done
 }
 
+add_neovim_ppa() {
+  if ls /etc/apt/sources.list.d/ 2>/dev/null | grep -qi 'neovim'; then
+    log "neovim-ppa already configured"
+    return 0
+  fi
+
+  if ! have_cmd add-apt-repository; then
+    apt_install software-properties-common
+  fi
+
+  local sudo_cmd=()
+  if [[ "$(id -u)" -ne 0 ]]; then
+    if have_cmd sudo; then
+      sudo_cmd=(sudo)
+    else
+      err "Need root or sudo to add ppa:neovim-ppa/unstable"
+      return 1
+    fi
+  fi
+
+  log "Adding ppa:neovim-ppa/unstable"
+  "${sudo_cmd[@]}" add-apt-repository -y ppa:neovim-ppa/unstable
+  "${sudo_cmd[@]}" apt-get update
+}
+
+upgrade_neovim_to_ppa() {
+  local installed
+  installed="$(dpkg-query -W -f='${Version}' neovim 2>/dev/null || true)"
+  if [[ -z "$installed" ]]; then
+    return 0
+  fi
+
+  # The config requires nvim 0.11+. Anything older needs an upgrade from the PPA.
+  if [[ "$installed" =~ ^0\.([0-9]|10)\. ]]; then
+    local sudo_cmd=()
+    if [[ "$(id -u)" -ne 0 ]] && have_cmd sudo; then
+      sudo_cmd=(sudo)
+    fi
+    log "Upgrading neovim from $installed to PPA build"
+    "${sudo_cmd[@]}" apt-get install -y --only-upgrade neovim
+  fi
+}
+
 install_apt_packages() {
+  add_neovim_ppa
   apt_install neovim ripgrep fd-find clangd golang-go
+  upgrade_neovim_to_ppa
 
   # Availability varies across releases (rust-analyzer/ruff/lua-language-server
   # are missing on older Ubuntu). tree-sitter-cli is never in apt; npm install
