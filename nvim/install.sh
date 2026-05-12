@@ -6,11 +6,9 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # shellcheck source=../lib/common.sh
 source "$ROOT_DIR/lib/common.sh"
 
-require_macos
+require_supported_os
 
-if [[ -x /opt/homebrew/bin/brew ]]; then
-  eval "$(/opt/homebrew/bin/brew shellenv)"
-fi
+bootstrap_homebrew_shellenv
 
 link_file "$ROOT_DIR/nvim" "$HOME/.config/nvim"
 ensure_dir "$HOME/.local/state/nvim/undo"
@@ -20,10 +18,6 @@ ensure_dir "$HOME/.local/bin"
 
 export NPM_CONFIG_PREFIX="${NPM_CONFIG_PREFIX:-$HOME/.local}"
 export PATH="$HOME/.local/bin:$PATH"
-
-have_cmd() {
-  command -v "$1" >/dev/null 2>&1
-}
 
 install_brew_packages() {
   local packages=(
@@ -52,6 +46,20 @@ install_brew_packages() {
       brew install "$package"
     fi
   done
+}
+
+install_apt_packages() {
+  apt_install neovim ripgrep fd-find clangd golang-go
+
+  # Availability varies across releases (rust-analyzer/ruff/lua-language-server
+  # are missing on older Ubuntu). tree-sitter-cli is never in apt; npm install
+  # picks it up below.
+  apt_install_optional rust-analyzer ruff lua-language-server
+
+  if have_cmd fdfind && ! have_cmd fd; then
+    ln -sf "$(command -v fdfind)" "$HOME/.local/bin/fd"
+    log "Linked fd -> fdfind in $HOME/.local/bin"
+  fi
 }
 
 install_npm_packages() {
@@ -95,15 +103,22 @@ check_clangd() {
     return 0
   fi
 
-  if have_cmd xcrun && xcrun --find clangd >/dev/null 2>&1; then
+  if [[ "$(os_id)" == "macos" ]] && have_cmd xcrun && xcrun --find clangd >/dev/null 2>&1; then
     log "clangd is available via xcrun"
     return 0
   fi
 
-  warn "clangd was not found. Install Xcode Command Line Tools or make an LLVM clangd available on PATH."
+  warn "clangd was not found. Install via apt (clangd), brew (llvm), or Xcode CLT."
 }
 
-install_brew_packages
+case "$(os_id)" in
+  macos)
+    install_brew_packages
+    ;;
+  ubuntu)
+    install_apt_packages
+    ;;
+esac
 install_npm_packages
 install_go_tools
 check_clangd

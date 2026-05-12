@@ -1,6 +1,7 @@
 # bsrc
 
-Personal macOS dotfiles and CLI/editor setup.
+Personal dotfiles and CLI/editor setup. macOS is the primary target; a
+minimal Ubuntu subset is supported via `--ubuntu`.
 
 `bsrc` is the single source of truth for the configs that are still worth keeping:
 
@@ -57,6 +58,46 @@ Linear, and Grafana, use:
 
 The setup script is idempotent. It updates symlinks, creates missing config
 directories, and replaces managed paths so the repo stays the source of truth.
+
+### Ubuntu
+
+```bash
+./setup.sh --ubuntu
+```
+
+The `--ubuntu` flag installs a minimal portable subset:
+
+- `zsh`, `git`, `tmux`, `nvim`, `btop`, `yazi`, `codex`, `claude`,
+  `feynman`, `obsidian-skills`
+
+Skipped on Ubuntu (macOS-only or heavy lift): `fonts`, `ghostty`,
+`peonping`, `anki`, `knowledge-smith`.
+
+Prerequisites the installer does **not** handle:
+
+- `tmux`, `git`, `curl`, `sudo` (or run as root) — install via apt
+- `claude` and `codex` CLIs — install separately; bsrc only manages their
+  config under `~/.claude` and `~/.codex`
+- A Nerd Font if you want glyphs in tmux/nvim — bsrc's `fonts` flow is
+  brew/fontforge-shaped and is skipped here
+
+Apt packages the installer pulls in:
+
+- `zsh` (zsh)
+- `neovim ripgrep fd-find clangd golang-go` (nvim — required)
+- `rust-analyzer ruff lua-language-server` (nvim — best-effort, warn if
+  unavailable on the release)
+- `btop` (btop)
+
+Notes:
+
+- `zsh` is installed on Ubuntu but **not** set as the default login shell
+  automatically. Export `BSRC_SET_ZSH_DEFAULT=1` before running setup to
+  opt in to `chsh -s $(command -v zsh)`.
+- Ubuntu's `fd-find` ships its binary as `fdfind`. The nvim installer
+  adds a `fd -> fdfind` shim in `~/.local/bin`.
+- `apt_install` uses `sudo` only when not running as root; in a root
+  container it calls `apt-get` directly.
 
 ## MCPs
 

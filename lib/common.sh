@@ -29,6 +29,82 @@ require_macos() {
   fi
 }
 
+os_id() {
+  case "$(uname -s)" in
+    Darwin)
+      printf 'macos\n'
+      ;;
+    Linux)
+      if [[ -r /etc/os-release ]] && grep -q '^ID=ubuntu' /etc/os-release; then
+        printf 'ubuntu\n'
+      else
+        printf 'linux\n'
+      fi
+      ;;
+    *)
+      printf 'unknown\n'
+      ;;
+  esac
+}
+
+require_supported_os() {
+  case "$(os_id)" in
+    macos|ubuntu)
+      return 0
+      ;;
+    *)
+      err "bsrc supports macOS and Ubuntu only."
+      exit 1
+      ;;
+  esac
+}
+
+apt_install() {
+  if ! have_cmd apt-get; then
+    warn "apt-get not found. Skipping apt packages: $*"
+    return 0
+  fi
+
+  local missing=()
+  local pkg
+  for pkg in "$@"; do
+    if dpkg-query -W -f='${Status}' "$pkg" 2>/dev/null | grep -q "install ok installed"; then
+      log "apt package already installed: $pkg"
+    else
+      missing+=("$pkg")
+    fi
+  done
+
+  if [[ ${#missing[@]} -eq 0 ]]; then
+    return 0
+  fi
+
+  local sudo_cmd=()
+  if [[ "$(id -u)" -ne 0 ]]; then
+    if have_cmd sudo; then
+      sudo_cmd=(sudo)
+    else
+      err "Need root or sudo to install apt packages: ${missing[*]}"
+      return 1
+    fi
+  fi
+
+  log "Installing apt packages: ${missing[*]}"
+  "${sudo_cmd[@]}" apt-get install -y "${missing[@]}"
+}
+
+# Best-effort apt install: each package is attempted individually, and a
+# missing one warns rather than failing the batch. Use this for LSPs and
+# other packages whose availability varies across Ubuntu releases.
+apt_install_optional() {
+  local pkg
+  for pkg in "$@"; do
+    if ! apt_install "$pkg" 2>/dev/null; then
+      warn "apt package unavailable on this release: $pkg"
+    fi
+  done
+}
+
 ensure_dir() {
   mkdir -p "$1"
 }
