@@ -99,4 +99,8 @@ if [[ "$with_mcps" == "1" ]]; then
 fi
 
 log "Setup complete."
-log "Open a new terminal or run: source ~/.zshrc"
+if [[ "$(os_id)" == "ubuntu" ]] && [[ "${SHELL:-}" != *zsh ]]; then
+  log "Start a zsh session: exec zsh"
+else
+  log "Open a new terminal or run: source ~/.zshrc"
+fi

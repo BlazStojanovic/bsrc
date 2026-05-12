@@ -98,4 +98,6 @@ if [[ -f /opt/homebrew/share/zsh/site-functions/_brew ]]; then
   fpath=(/opt/homebrew/share/zsh/site-functions $fpath)
 fi
 
-. "$HOME/.local/share/../bin/env"
+if [[ -f "$HOME/.local/bin/env" ]]; then
+  . "$HOME/.local/bin/env"
+fi
