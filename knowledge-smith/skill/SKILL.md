@@ -32,6 +32,24 @@ resolved. To start a new vault:
 uv run ~/.claude/skills/knowledge-smith/scripts/ks_doctor.py --init <path>
 ```
 
+### Nested vaults
+
+A knowledge-smith vault can be the root of its own repo *or* live
+nested inside a host repo (e.g. as a git submodule). The discovery rule
+is the same — `cd` into the vault directory (or any subdir) before
+running ingest scripts. Running from the host repo root above the
+vault will not find the marker and the script hard-fails; that's
+intentional.
+
+Example pattern: a host vault (synthesis tier: `concepts/`, `maps/`,
+`hypotheses/`, ...) carries the knowledge-smith vault as a submodule at
+`host/knowledge-smith/`. To ingest: `cd host/knowledge-smith` first, or
+export `KNOWLEDGE_SMITH_VAULT=$PWD/host/knowledge-smith` to bypass the
+cwd-walk. Wikilinks from synthesis-tier notes into the indexing tier
+resolve via the submodule path
+(`[[knowledge-smith/notes/papers/<slug>]]`) — Obsidian treats the
+submodule's working tree as part of the same vault.
+
 ## How the pipeline works
 
 **Scripts are I/O plumbing.** They write notes + raw assets, run
@@ -348,6 +366,38 @@ Generates `reading-list/<kind>.md` listing every `read: false` note for
 that kind. Dated kinds (paper/model-card/article/youtube) are grouped
 by year, descending; blog/post/github/course are flat lists.
 Regenerate after any ingest or read-flip.
+
+## Batch ingestion (one-shot inbox drains)
+
+For 30+ sources at once (a saved inbox file, a dump of arXiv IDs),
+running the agent loop per item is slow and may hit subagent permission
+walls in some harnesses. Two stdlib-only batch wrappers let you collapse
+the work into a single process:
+
+```
+# arXiv IDs (one per line, or pass directly)
+uv run ~/.claude/skills/knowledge-smith/scripts/ks_batch_arxiv.py 1706.03762
+uv run ~/.claude/skills/knowledge-smith/scripts/ks_batch_arxiv.py --ids-file inbox-arxiv.txt --delay 2.5
+
+# blog/post/github/course bookmarks (TSV: kind<TAB>url[<TAB>slug])
+uv run ~/.claude/skills/knowledge-smith/scripts/ks_batch_bookmarks.py --tsv inbox-bookmarks.tsv
+```
+
+Both scripts:
+- Hit the source's HTTP endpoint via stdlib (arXiv export API for
+  papers, plain HTML + OpenGraph meta for bookmarks) — no WebFetch.
+- Compose a minimal stub body (title + author/source line + abstract
+  or OG description + `(stub)` placeholders).
+- Shell out to the matching `ingest_<kind>.py` per item.
+- Print a summary at the end; failed items can be retried by passing
+  just their IDs/URLs.
+
+Limitations: bookmark metadata extraction is brittle on JS-rendered
+sites (Notion, x.com, JS-rendered docs) — those often return only the
+site-default `<title>`, producing a generic slug. Pass an explicit slug
+in the TSV's third column when you want a clean name. Both scripts
+expect to run from inside the target vault (so `find_vault()` resolves
+correctly), or take `--cwd /path/to/vault` to target one explicitly.
 
 ## Tagging — agent-driven (subagents return tags)
 
