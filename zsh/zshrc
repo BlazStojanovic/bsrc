@@ -94,6 +94,11 @@ alias fh='git fetch'
 alias br='git log --graph --oneline --decorate --all'
 alias lg='lazygit'
 
+# Alias for knowledge-smith and knowledge base
+alias ks='cd ~/Desktop/poolside-kb/knowledge-smith/'
+alias kb='cd ~/Desktop/poolside-kb/'
+
+
 if [[ -f /opt/homebrew/share/zsh/site-functions/_brew ]]; then
   fpath=(/opt/homebrew/share/zsh/site-functions $fpath)
 fi

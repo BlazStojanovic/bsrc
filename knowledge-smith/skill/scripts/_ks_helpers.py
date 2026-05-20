@@ -72,6 +72,13 @@ def fetch_ar5iv(arxiv_id: str, *, timeout: float = 60.0) -> str | None:
 
     Returns markdown string on success, None on HTTP failure or non-200
     (with a warn log).
+
+    The ar5iv HTML embeds inline color-scheme JS, MathJax loader JS, and a
+    citation-preview JS block as text content of `<script>` tags, plus
+    `<nav>` / `<header>` / `<footer>` site chrome. `markdownify`'s `strip=`
+    parameter only removes the tag wrappers; the text content of those
+    tags still leaks into the output. We pre-strip with BeautifulSoup so
+    the chrome doesn't end up in the converted markdown.
     """
     import httpx  # type: ignore[import-not-found]
     from markdownify import markdownify  # type: ignore[import-not-found]
@@ -88,7 +95,40 @@ def fetch_ar5iv(arxiv_id: str, *, timeout: float = 60.0) -> str | None:
     if r.status_code != 200:
         warn(f"ar5iv returned {r.status_code} for {arxiv_id}")
         return None
-    return markdownify(r.text, heading_style="ATX", strip=["script", "style"])
+
+    cleaned_html = _strip_ar5iv_chrome(r.text)
+    return markdownify(cleaned_html, heading_style="ATX", strip=["script", "style"])
+
+
+def _strip_ar5iv_chrome(html: str) -> str:
+    """Remove ar5iv site chrome and JS/CSS leakage before markdownify.
+
+    Decomposes <script>, <style>, <nav>, <header>, <footer> tags so their
+    text content is gone (markdownify's `strip=` only removes the tag,
+    keeping the text). Also drops any element with class `ltx_page_logo`,
+    `ar5iv-footer`, or `ltx_engrafo_footer` which carry the LaTeXML mascot
+    and footer chrome.
+
+    Strips <img> tags too: ar5iv image src attributes are server-relative
+    paths (`/html/<arxiv-id>/assets/...`) that don't resolve outside ar5iv.
+    Markdownify converts `<img alt="[Uncaptioned image]" src="...">` into
+    `![[Uncaptioned image]](...)` which Obsidian then mis-parses as a broken
+    image-embed wikilink. Dropping the img element side-steps both problems.
+    """
+    try:
+        from bs4 import BeautifulSoup  # type: ignore[import-not-found]
+    except ImportError:
+        warn("bs4 not installed; skipping ar5iv chrome strip (output will contain JS/nav/img)")
+        return html
+
+    soup = BeautifulSoup(html, "html.parser")
+    for tag_name in ("script", "style", "noscript", "nav", "header", "footer", "img"):
+        for el in soup.find_all(tag_name):
+            el.decompose()
+    for cls in ("ltx_page_logo", "ar5iv-footer", "ltx_engrafo_footer"):
+        for el in soup.find_all(class_=cls):
+            el.decompose()
+    return str(soup)
 
 
 # ---------------------------------------------------------------------------

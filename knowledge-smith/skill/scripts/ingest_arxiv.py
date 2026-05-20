@@ -2,6 +2,7 @@
 # /// script
 # requires-python = ">=3.11"
 # dependencies = [
+#   "beautifulsoup4>=4.12",
 #   "httpx>=0.27",
 #   "markdownify>=0.13",
 #   "python-frontmatter>=1.1",
