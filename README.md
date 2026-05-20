@@ -20,6 +20,7 @@ minimal Ubuntu subset is supported via `--ubuntu`.
 - `anki`
 - `feynman`
 - `obsidian-skills`
+- `grafana`
 
 Explicitly excluded from this repo:
 
@@ -49,8 +50,8 @@ cd ~/Developer/bsrc
 ./setup.sh
 ```
 
-To also install the managed Claude Code and Codex MCP entries for Notion, Coda,
-Linear, and Grafana, use:
+To also install the managed Claude Code and Codex MCP entries for Notion and
+Coda, use:
 
 ```bash
 ./setup.sh --with-mcps
@@ -101,13 +102,11 @@ Notes:
 
 ## MCPs
 
-The repo can optionally install four managed MCPs for both Claude Code and
+The repo can optionally install two managed MCPs for both Claude Code and
 Codex:
 
 - `notion`
 - `coda`
-- `linear`
-- `grafana`
 
 This is opt-in only. The default install path does not add them. You can enable
 them from the root installer with `./setup.sh --with-mcps`, or directly via:
@@ -121,25 +120,17 @@ Implementation details:
 
 - Claude keeps the normal repo-managed files under `~/.claude`, and the opt-in installer adds missing user-scope MCP entries through the `claude` CLI.
 - Codex renders `~/.codex/config.toml` from the base repo config plus the optional fragment at [codex/mcp-servers.toml](/Users/blazstojanovic/Developer/bsrc/codex/mcp-servers.toml).
-- The Grafana MCP binary is also installed automatically on the opt-in path. The installer uses Grafana's documented `go install` flow and installs Homebrew `go` first if needed.
 
 Post-install auth and runtime requirements:
 
 - Notion for Codex still needs `codex mcp login notion`.
-- Linear for Codex still needs `codex mcp login linear`.
-- Notion, Coda, and Linear for Claude still need to be authenticated inside Claude Code via `/mcp`.
+- Notion and Coda for Claude still need to be authenticated inside Claude Code via `/mcp`.
 - Coda for Codex expects `CODA_MCP_AUTH_TOKEN` in your environment. This uses Codex's native remote MCP support rather than baking a bearer token into the repo config.
-- Grafana for both clients expects `GRAFANA_URL` and `GRAFANA_SERVICE_ACCOUNT_TOKEN` in your environment. The installer prints a lightweight readiness summary for these requirements when `--with-mcps` is used.
 
 Official docs:
 
 - Notion: https://developers.notion.com/guides/mcp/get-started-with-mcp
 - Coda: https://help.coda.io/hc/en-us/articles/44722661982989-Connect-to-the-Coda-MCP
-- Linear: https://linear.app/docs/mcp
-- Grafana MCP overview: https://grafana.com/docs/grafana/latest/developer-resources/mcp/
-- Grafana binary install: https://grafana.com/docs/grafana/latest/developer-resources/mcp/set-up/install-the-binary/
-- Grafana for Claude Code: https://grafana.com/docs/grafana/latest/developer-resources/mcp/clients/claude-code/
-- Grafana for Codex: https://grafana.com/docs/grafana/latest/developer-resources/mcp/clients/codex/
 
 ## Zsh
 
@@ -306,7 +297,7 @@ for prerequisites, the one-time per-device addon install, and the daily
 workflow.
 
 The Anki MCP entry is gated behind `--with-mcps` (same convention as
-notion/coda/linear/grafana).
+notion/coda).
 
 [mcp-addon]: https://github.com/ankimcp/anki-mcp-server-addon
 
@@ -335,6 +326,32 @@ five bundled skills (`obsidian-markdown`, `obsidian-bases`,
 and `~/.codex/skills/`. Re-running fast-forwards the cache. Pin to a
 specific upstream commit via `OBSIDIAN_SKILLS_REF=<sha>`. See
 [obsidian-skills/README.md](/Users/blazstojanovic/Developer/bsrc/obsidian-skills/README.md).
+
+## Grafana
+
+The `grafana` component installs the [`gcx`](https://grafana.com/docs/grafana/latest/cli/gcx/)
+CLI from the official `grafana/grafana` Homebrew tap. This replaces the old
+`mcp-grafana` MCP server: agents now query Grafana directly through `gcx`.
+
+Login and context configuration are intentionally manual one-time steps because
+they require a service account token from
+[poolside.grafana.net](https://poolside.grafana.net):
+
+1. Grafana sidebar → Administration → Users and access → Service accounts.
+2. Open or create a service account (e.g. `<your-name>-cli`, Viewer role).
+3. Add a service account token and copy it.
+4. Authenticate the CLI:
+
+   ```bash
+   gcx login poolside --server https://poolside.grafana.net --token '<token>' --yes
+   gcx config set contexts.poolside.grafana.org-id 1
+   ```
+
+5. Verify with `gcx config check` and `gcx datasources list`.
+
+After that, `gcx datasources list`, `gcx query`, etc. are available to both the
+shell and to agents like Claude Code via Bash. The installer surfaces a warning
+if `gcx config check` fails so it's clear when the token needs to be refreshed.
 
 ## Current Direction
 

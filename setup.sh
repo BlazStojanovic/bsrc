@@ -82,6 +82,7 @@ else
     anki
     feynman
     obsidian-skills
+    grafana
   )
 fi
 
@@ -92,10 +93,9 @@ done
 
 if [[ "$with_mcps" == "1" ]]; then
   log "Managed MCP install summary:"
-  printf '  - Claude: /mcp auth required for notion, coda, and linear\n'
-  printf '  - Codex: run codex mcp login notion and codex mcp login linear\n'
+  printf '  - Claude: /mcp auth required for notion and coda\n'
+  printf '  - Codex: run codex mcp login notion\n'
   printf '  - Coda for Codex: export CODA_MCP_AUTH_TOKEN\n'
-  printf '  - Grafana: ensure GRAFANA_URL and GRAFANA_SERVICE_ACCOUNT_TOKEN are set\n'
 fi
 
 log "Setup complete."

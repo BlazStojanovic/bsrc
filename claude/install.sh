@@ -50,26 +50,8 @@ add_claude_mcp() {
 }
 
 print_claude_mcp_summary() {
-  log "Claude MCP summary: notion, coda, linear, grafana configured"
-  warn "Claude still needs /mcp authentication for notion, coda, and linear."
-
-  if have_cmd mcp-grafana; then
-    log "Grafana binary ready for Claude: $(command -v mcp-grafana)"
-  else
-    warn "Grafana binary still missing for Claude: mcp-grafana"
-  fi
-
-  if [[ -n "${GRAFANA_URL:-}" ]]; then
-    log "Grafana URL env detected: GRAFANA_URL"
-  else
-    warn "Grafana URL env missing: GRAFANA_URL"
-  fi
-
-  if [[ -n "${GRAFANA_SERVICE_ACCOUNT_TOKEN:-}" ]]; then
-    log "Grafana token env detected: GRAFANA_SERVICE_ACCOUNT_TOKEN"
-  else
-    warn "Grafana token env missing: GRAFANA_SERVICE_ACCOUNT_TOKEN"
-  fi
+  log "Claude MCP summary: notion, coda configured"
+  warn "Claude still needs /mcp authentication for notion and coda."
 }
 
 ensure_dir "$HOME/.claude"
@@ -83,10 +65,7 @@ if [[ "$with_mcps" == "1" ]]; then
     exit 0
   fi
 
-  install_grafana_mcp_binary
   add_claude_mcp notion --transport http notion https://mcp.notion.com/mcp
   add_claude_mcp coda --transport http coda https://coda.io/apis/mcp
-  add_claude_mcp linear --transport http linear https://mcp.linear.app/mcp
-  add_claude_mcp grafana grafana -- mcp-grafana
   print_claude_mcp_summary
 fi
