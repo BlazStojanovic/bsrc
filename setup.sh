@@ -18,7 +18,7 @@ Usage: ./setup.sh [--with-mcps] [--ubuntu]
 Options:
   --with-mcps  Also install the managed Claude Code and Codex MCP servers.
   --ubuntu     Install the Ubuntu component subset (tmux, nvim, claude,
-               codex, git, zsh, yazi, btop, feynman, obsidian-skills).
+               codex, git, zsh, yazi, btop, devpod, obsidian-skills).
                Skips macOS-only components (ghostty, peonping, fonts,
                anki, knowledge-smith).
 EOF
@@ -62,7 +62,7 @@ if [[ "$ubuntu" == "1" ]]; then
     yazi
     codex
     claude
-    feynman
+    devpod
     obsidian-skills
   )
 else
@@ -78,9 +78,9 @@ else
     peonping
     codex
     claude
+    devpod
     knowledge-smith
     anki
-    feynman
     obsidian-skills
     grafana
   )

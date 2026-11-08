@@ -1,0 +1,313 @@
+#!/usr/bin/env bash
+# Drive a Kubernetes GPU dev pod (infractl dev) from the laptop: lifecycle, GPU
+# pin, shell, files. Cluster-specific settings come from a local, untracked
+# config file (DEVPOD_CONFIG); this script holds none of them.
+set -euo pipefail
+
+DEVPOD_CONFIG="${DEVPOD_CONFIG:-$HOME/.config/bsrc/devpod.env}"
+# shellcheck source=/dev/null
+if [ -f "$DEVPOD_CONFIG" ]; then . "$DEVPOD_CONFIG"; fi
+
+DEVPOD_USER="${DEVPOD_USER:-$(id -un)}"
+DEVPOD_NAME="${DEVPOD_NAME:-${DEVPOD_USER}-dev}"
+DEVPOD_CONTEXT="${DEVPOD_CONTEXT:-}"            # kube context of the GPU cluster
+DEVPOD_NAMESPACE="${DEVPOD_NAMESPACE:-}"        # namespace the dev pods run in
+DEVPOD_QUEUE="${DEVPOD_QUEUE:-}"                # scheduling queue, for create
+DEVPOD_GPUS="${DEVPOD_GPUS:-1}"
+DEVPOD_CAPS="${DEVPOD_CAPS:-}"                  # "context=cpus:GiB ...", per GPU
+DEVPOD_INFRACTL_ARGS="${DEVPOD_INFRACTL_ARGS:-}"
+DEVPOD_S3_PROFILE="${DEVPOD_S3_PROFILE:-}"      # AWS profile for stage/unstage
+DEVPOD_BUCKET="${DEVPOD_BUCKET:-}"              # bucket mounted at /mnt/s3
+DEVPOD_AWS_PROFILES="${DEVPOD_AWS_PROFILES:-}"  # regex of SSO profiles for the pod
+DEVPOD_LOGIN_HINT="${DEVPOD_LOGIN_HINT:-aws sso login}"
+DEVPOD_BSRC_REF="${DEVPOD_BSRC_REF:-main}"
+
+POD="${DEVPOD_NAME}-0"
+PHOME=/persistent
+
+# Resolve the real script location through the ~/.local/bin symlink.
+src="${BASH_SOURCE[0]}"
+while [ -L "$src" ]; do
+  dir="$(cd -P "$(dirname "$src")" && pwd)"
+  src="$(readlink "$src")"
+  case "$src" in /*) ;; *) src="$dir/$src" ;; esac
+done
+COMPONENT_DIR="$(cd -P "$(dirname "$src")/.." && pwd)"
+
+log() { printf '\033[1;34mdevpod:\033[0m %s\n' "$*" >&2; }
+die() { printf '\033[1;31mdevpod:\033[0m %s\n' "$*" >&2; exit 1; }
+
+require() {
+  local v
+  for v in "$@"; do
+    [ -n "${!v:-}" ] || die "set $v in $DEVPOD_CONFIG"
+  done
+}
+
+kc() { kubectl --context="$DEVPOD_CONTEXT" -n "$DEVPOD_NAMESPACE" "$@"; }
+
+# Non-interactive command in the pod, through a login shell so ~/.devpod/env.sh applies.
+pexec() { kc exec "$POD" -c dev -- bash -lc "$1"; }
+
+# Fail early with the fix when the cloud SSO session behind kubectl has expired.
+auth_check() {
+  local out
+  if ! out="$(kc get statefulset "$DEVPOD_NAME" -o jsonpath='{.spec.replicas}' 2>&1)"; then
+    case "$out" in
+      *NotFound*|*"not found"*) printf '%s\n' "missing"; return 0 ;;
+      *expired*|*SSO*|*sso*|*token*|*credentials*|*Unauthorized*)
+        die "kubectl auth failed (SSO expired?). Run: $DEVPOD_LOGIN_HINT" ;;
+      *) die "kubectl failed: $out" ;;
+    esac
+  fi
+  printf '%s\n' "$out"
+}
+
+wait_ready() {
+  log "waiting for $POD to be Ready"
+  kc wait --for=create "pod/$POD" --timeout=300s >/dev/null
+  kc wait --for=condition=Ready "pod/$POD" --timeout=900s >/dev/null
+}
+
+# UUIDs of the GPUs the pod's DRA claim was allocated, comma-separated.
+allocated_gpu_uuids() {
+  local node claim devs slices uuids="" d u
+  node="$(kc get pod "$POD" -o jsonpath='{.spec.nodeName}')"
+  claim="$(kc get pod "$POD" -o jsonpath='{.status.resourceClaimStatuses[?(@.name=="gpu")].resourceClaimName}')"
+  [ -n "$claim" ] || return 0
+  devs="$(kc get resourceclaim "$claim" -o jsonpath='{.status.allocation.devices.results[*].device}')"
+  slices="$(kubectl --context="$DEVPOD_CONTEXT" get resourceslices -o json)"
+  for d in $devs; do
+    u="$(printf '%s' "$slices" | jq -r --arg n "$node" --arg d "$d" \
+      '.items[] | select(.spec.nodeName==$n) | .spec.devices[]? | select(.name==$d)
+       | (.attributes.uuid.string // .basic.attributes.uuid.string // empty)' | head -1)"
+    [ -n "$u" ] && uuids="${uuids:+$uuids,}$u"
+  done
+  printf '%s\n' "$uuids"
+}
+
+# A privileged container sees every GPU on its node. Pin CUDA to the allocated
+# ones, for this pod start only: the marker (host boot id + PID 1 start time)
+# changes on any restart, and the pin then falls back to no GPU.
+cmd_pin_gpu() {
+  local uuids marker tmp
+  uuids="$(allocated_gpu_uuids)"
+  [ -n "$uuids" ] || die "could not resolve the pod's allocated GPUs"
+  marker="$(pexec 'printf "%s:%s" "$(cat /proc/sys/kernel/random/boot_id)" "$(awk "{print \$22}" /proc/1/stat)"')"
+  [ -n "$marker" ] || die "could not read the pod's start marker"
+  tmp="$(mktemp)"
+  cat >"$tmp" <<EOF
+# Written by \`devpod pin-gpu\` for one pod start. After a restart the GPU may
+# belong to another pod, so CUDA stays off until \`devpod up\` pins it again.
+if [ "\$(cat /proc/sys/kernel/random/boot_id 2>/dev/null):\$(awk '{print \$22}' /proc/1/stat 2>/dev/null)" = "$marker" ]; then
+  export CUDA_VISIBLE_DEVICES=$uuids
+else
+  export CUDA_VISIBLE_DEVICES=-1
+fi
+EOF
+  pexec 'mkdir -p ~/.devpod'
+  kc cp "$tmp" "$POD:$PHOME/.devpod/gpu.sh" -c dev
+  rm -f "$tmp"
+  log "pinned CUDA_VISIBLE_DEVICES to $uuids until the pod restarts"
+}
+
+# CPU cores and GiB per GPU for the current context, from DEVPOD_CAPS.
+caps_for_context() {
+  local e
+  for e in $DEVPOD_CAPS; do
+    case "$e" in "$DEVPOD_CONTEXT="*) printf '%s\n' "${e#*=}"; return 0 ;; esac
+  done
+  return 1
+}
+
+cmd_create() {
+  local caps cpu mem res
+  require DEVPOD_QUEUE
+  if caps="$(caps_for_context)"; then
+    cpu=$((${caps%%:*} * DEVPOD_GPUS)); mem=$((${caps##*:} * DEVPOD_GPUS))
+    res="$(printf '{"requests":{"cpu":"%s","memory":"%sGi"},"limits":{"nvidia.com/gpu":"%s","cpu":"%s","memory":"%sGi"}}' \
+      "$cpu" "$mem" "$DEVPOD_GPUS" "$cpu" "$mem")"
+  else
+    res="$(printf '{"limits":{"nvidia.com/gpu":"%s"}}' "$DEVPOD_GPUS")"
+  fi
+  log "creating $DEVPOD_NAME on $DEVPOD_CONTEXT, queue $DEVPOD_QUEUE, $DEVPOD_GPUS GPU(s)"
+  # shellcheck disable=SC2086
+  infractl dev create $DEVPOD_INFRACTL_ARGS --queue-name "$DEVPOD_QUEUE" --name "$DEVPOD_NAME" --resources "$res" "$@"
+  wait_ready
+  cmd_pin_gpu
+  log "next: devpod bootstrap   (installs zsh/nvim/claude/codex/aws into /persistent)"
+}
+
+cmd_up() {
+  local replicas
+  replicas="$(auth_check)"
+  [ "$replicas" != missing ] || die "no dev pod '$DEVPOD_NAME' on $DEVPOD_CONTEXT; create one with: devpod create"
+  if [ "$replicas" = 0 ]; then
+    log "resuming $DEVPOD_NAME"
+    # shellcheck disable=SC2086
+    infractl dev resume $DEVPOD_INFRACTL_ARGS "$DEVPOD_NAME" >/dev/null
+  fi
+  wait_ready
+  cmd_pin_gpu
+  cmd_status
+}
+
+cmd_down() {
+  # shellcheck disable=SC2086
+  infractl dev suspend $DEVPOD_INFRACTL_ARGS "$DEVPOD_NAME" --force
+}
+
+cmd_status() {
+  local replicas phase node alloc pinned
+  replicas="$(auth_check)"
+  if [ "$replicas" = missing ]; then echo "devpod $DEVPOD_NAME: not found on $DEVPOD_CONTEXT"; return 0; fi
+  if [ "$replicas" = 0 ]; then
+    echo "devpod $DEVPOD_NAME: suspended (resume with: devpod up)"
+    return 0
+  fi
+  phase="$(kc get pod "$POD" -o jsonpath='{.status.phase}' 2>/dev/null || echo '?')"
+  node="$(kc get pod "$POD" -o jsonpath='{.spec.nodeName}' 2>/dev/null || echo '?')"
+  echo "devpod $DEVPOD_NAME: $phase on $node (context $DEVPOD_CONTEXT)"
+  if [ "$phase" = Running ]; then
+    alloc="$(allocated_gpu_uuids)"
+    pinned="$(pexec 'printf "%s" "${CUDA_VISIBLE_DEVICES-}"' 2>/dev/null || true)"
+    if [ -n "$alloc" ] && [ "$alloc" = "$pinned" ]; then
+      echo "gpu: pinned to allocated $alloc"
+    elif [ "$pinned" = -1 ]; then
+      echo "gpu: CUDA off, the pod restarted since the last pin -> run: devpod up"
+    else
+      echo "gpu: allocated ${alloc:-?}, pinned ${pinned:-nothing} -> run: devpod up"
+    fi
+  fi
+}
+
+cmd_shell() {
+  local tty=-i
+  [ -t 0 ] && [ -t 1 ] && tty=-it
+  if [ $# -gt 0 ]; then
+    kc exec "$tty" "$POD" -c dev -- bash -lc "$*"
+  else
+    kc exec "$tty" "$POD" -c dev -- bash -lc 'z="$HOME/.pixi/bin/zsh"; if [ -x "$z" ]; then exec "$z" -l; else exec bash -l; fi'
+  fi
+}
+
+remote_default() {
+  printf '%s/%s\n' "$PHOME" "$(basename "$1")"
+}
+
+cmd_push() {
+  [ $# -ge 1 ] || die "usage: devpod push <local-path> [pod-path]"
+  local dst="${2:-$(remote_default "$1")}"
+  # kubectl cp does not create missing parent directories.
+  pexec "mkdir -p '$(dirname "$dst")'"
+  kc cp "$1" "$POD:$dst" -c dev
+  log "pushed $1 -> $POD:$dst"
+}
+
+cmd_pull() {
+  [ $# -ge 1 ] || die "usage: devpod pull <pod-path> [local-path]"
+  local dst="${2:-./$(basename "$1")}"
+  mkdir -p "$(dirname "$dst")"
+  kc cp "$POD:$1" "$dst" -c dev 2>&1 | grep -v 'Removing leading' >&2 || true
+  [ -e "$dst" ] || die "pull failed: $1"
+  log "pulled $POD:$1 -> $dst"
+}
+
+# S3 is the fast lane for big files: the pod mounts the user's prefix at /mnt/s3.
+cmd_stage() {
+  [ $# -ge 1 ] || die "usage: devpod stage <local-path> [key]"
+  require DEVPOD_S3_PROFILE DEVPOD_BUCKET
+  local key="${2:-$(basename "$1")}" rec=""
+  [ -d "$1" ] && rec="--recursive"
+  # shellcheck disable=SC2086
+  aws s3 cp $rec --only-show-errors --profile "$DEVPOD_S3_PROFILE" "$1" "s3://$DEVPOD_BUCKET/$DEVPOD_USER/$key"
+  log "staged $1 -> s3://$DEVPOD_BUCKET/$DEVPOD_USER/$key (in the pod: /mnt/s3/$key)"
+}
+
+cmd_unstage() {
+  [ $# -ge 1 ] || die "usage: devpod unstage <key> [local-path]"
+  require DEVPOD_S3_PROFILE DEVPOD_BUCKET
+  local key="$1" dst="${2:-./$(basename "$1")}" rec=""
+  if aws s3 ls --profile "$DEVPOD_S3_PROFILE" "s3://$DEVPOD_BUCKET/$DEVPOD_USER/$key/" >/dev/null 2>&1; then rec="--recursive"; fi
+  # shellcheck disable=SC2086
+  aws s3 cp $rec --only-show-errors --profile "$DEVPOD_S3_PROFILE" "s3://$DEVPOD_BUCKET/$DEVPOD_USER/$key" "$dst"
+  log "fetched s3://$DEVPOD_BUCKET/$DEVPOD_USER/$key -> $dst"
+}
+
+cmd_bootstrap() {
+  local tmp replicas f
+  replicas="$(auth_check)"
+  [ "$replicas" != missing ] || die "no dev pod '$DEVPOD_NAME'; create one with: devpod create"
+  [ "$replicas" != 0 ] || die "$DEVPOD_NAME is suspended; run: devpod up"
+  wait_ready
+  pexec 'mkdir -p ~/.devpod ~/.config/bsrc && rm -rf ~/.devpod/skill'
+  # SSO profile config only (never keys), so the pod can run `aws sso login`.
+  if [ -n "$DEVPOD_AWS_PROFILES" ] && [ -f "$HOME/.aws/config" ]; then
+    tmp="$(mktemp)"
+    awk -v re="$DEVPOD_AWS_PROFILES" '/^\[/{
+        name = $0; sub(/^\[profile /, "", name)
+        keep = ($0 ~ /^\[sso-session /) || ($0 ~ /^\[profile / && name ~ re)
+      } keep' "$HOME/.aws/config" >"$tmp"
+    kc cp "$tmp" "$POD:$PHOME/.devpod/aws-config" -c dev
+    rm -f "$tmp"
+  fi
+  # Private settings and notes travel over kubectl, never through the repo.
+  for f in "$DEVPOD_CONFIG" "$(dirname "$DEVPOD_CONFIG")/devpod.md"; do
+    if [ -f "$f" ]; then kc cp "$f" "$POD:$PHOME/.config/bsrc/$(basename "$f")" -c dev; fi
+  done
+  kc cp "$COMPONENT_DIR/pod/bootstrap.sh" "$POD:$PHOME/.devpod/bootstrap.sh" -c dev
+  kc cp "$COMPONENT_DIR/skill" "$POD:$PHOME/.devpod/skill" -c dev
+  kc exec -it "$POD" -c dev -- env BSRC_REF="$DEVPOD_BSRC_REF" bash "$PHOME/.devpod/bootstrap.sh" "$@"
+  cmd_pin_gpu
+}
+
+usage() {
+  cat <<EOF
+Usage: devpod <command> [args]
+
+Lifecycle
+  status                 pod state and GPU pin
+  up                     resume if suspended, then pin the GPU
+  down                   suspend the pod (frees the GPU, keeps /persistent)
+  create [infractl args] create the pod (queue, GPUs and caps from the config)
+  bootstrap [--upgrade]  install zsh/nvim/claude/codex/aws + bsrc configs in /persistent
+
+Connect
+  shell [cmd...]         interactive zsh in the pod, or run one command
+  pin-gpu                pin CUDA to the pod's allocated GPU (devpod up does this)
+
+Files
+  push <local> [pod-path]   copy into the pod (default /persistent/<name>)
+  pull <pod-path> [local]   copy out of the pod
+  stage <local> [key]       upload to the pod's S3 prefix, seen in the pod at /mnt/s3/<key>
+  unstage <key> [local]     download from that prefix
+
+Settings: $DEVPOD_CONFIG (DEVPOD_CONTEXT, DEVPOD_NAMESPACE, DEVPOD_QUEUE,
+DEVPOD_CAPS, DEVPOD_S3_PROFILE, DEVPOD_BUCKET, ...). Pod: $DEVPOD_NAME.
+EOF
+}
+
+main() {
+  local cmd="${1:-help}"
+  [ $# -gt 0 ] && shift
+  case "$cmd" in
+    help|-h|--help) usage; return 0 ;;
+  esac
+  require DEVPOD_CONTEXT DEVPOD_NAMESPACE
+  case "$cmd" in
+    status) cmd_status "$@" ;;
+    up) cmd_up "$@" ;;
+    down) cmd_down "$@" ;;
+    create) cmd_create "$@" ;;
+    bootstrap) cmd_bootstrap "$@" ;;
+    shell|sh) cmd_shell "$@" ;;
+    pin-gpu|pin) cmd_pin_gpu "$@" ;;
+    push) cmd_push "$@" ;;
+    pull) cmd_pull "$@" ;;
+    stage) cmd_stage "$@" ;;
+    unstage) cmd_unstage "$@" ;;
+    *) usage >&2; exit 1 ;;
+  esac
+}
+
+main "$@"

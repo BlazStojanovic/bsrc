@@ -16,9 +16,9 @@ minimal Ubuntu subset is supported via `--ubuntu`.
 - `peonping`
 - `codex`
 - `claude`
+- `devpod`
 - `knowledge-smith`
 - `anki`
-- `feynman`
 - `obsidian-skills`
 - `grafana`
 
@@ -69,7 +69,7 @@ directories, and replaces managed paths so the repo stays the source of truth.
 The `--ubuntu` flag installs a minimal portable subset:
 
 - `zsh`, `git`, `tmux`, `nvim`, `btop`, `yazi`, `codex`, `claude`,
-  `feynman`, `obsidian-skills`
+  `devpod`, `obsidian-skills`
 
 Skipped on Ubuntu (macOS-only or heavy lift): `fonts`, `ghostty`,
 `peonping`, `anki`, `knowledge-smith`.
@@ -301,21 +301,6 @@ notion/coda).
 
 [mcp-addon]: https://github.com/ankimcp/anki-mcp-server-addon
 
-## Feynman
-
-The Feynman component installs the shared skills bundle for both agent homes:
-
-- `~/.codex/skills/feynman`
-- `~/.claude/skills/<skill-name>`
-
-It uses the official installer. Codex receives the Feynman bundle in a grouped
-directory, while Claude receives flattened skill directories because Claude
-discovers skills at `~/.claude/skills/<skill-name>/SKILL.md`:
-
-```bash
-curl -fsSL https://feynman.is/install-skills | bash
-```
-
 ## Obsidian Skills
 
 The `obsidian-skills` component clones
@@ -352,6 +337,35 @@ they require a service account token from
 After that, `gcx datasources list`, `gcx query`, etc. are available to both the
 shell and to agents like Claude Code via Bash. The installer surfaces a warning
 if `gcx config check` fails so it's clear when the token needs to be refreshed.
+
+## Devpod
+
+The `devpod` component drives a Kubernetes GPU dev pod (`infractl dev`) from the
+laptop. On macOS it links `devpod/bin/devpod` into `~/.local/bin`; on both macOS
+and Ubuntu it links the `devpod` skill into `~/.claude/skills/` and
+`~/.codex/skills/`. It needs `infractl`, `kubectl`, `aws` and `jq`.
+
+Cluster-specific settings stay out of this repo, in
+`~/.config/bsrc/devpod.env` (context, namespace, queue, per-GPU caps, S3 bucket
+and profiles); `~/.config/bsrc/devpod.md` can hold matching notes for agents.
+`devpod help` lists the variables.
+
+```bash
+devpod create      # once: create the pod from those settings
+devpod bootstrap   # once: zsh/tmux/rg/fd/jq (pixi), nvim, claude, codex, aws
+devpod up          # each session: resume, then pin the GPU
+devpod shell       # zsh in the pod (kubectl exec, like infractl dev connect)
+devpod down        # suspend; /persistent is kept
+```
+
+Inside the pod everything lives under `/persistent` (the pod's `HOME`), so it
+survives suspend and resume: the bootstrap installs CLI tools with pixi and
+binaries into `~/.local`, clones bsrc into `~/bsrc` and runs its zsh, git, tmux,
+nvim, codex and claude installers, then strips the macOS-only Claude hooks and
+Codex `notify`. Files move with `devpod push`/`pull` (kubectl cp) or
+`devpod stage`/`unstage` (the pod's S3 prefix, mounted at `/mnt/s3`). The dev
+container sees every GPU on its node, so `devpod up` pins CUDA to the pod's own
+GPU for that pod start; the skill documents this and the other pitfalls.
 
 ## Current Direction
 
